@@ -61,7 +61,7 @@ UserProfile _profileFromEvent(NostrEvent event) {
     avatarUrl: data.avatarUrl,
     about: data.about,
     nip05Handle: data.nip05,
-    ownerPubkey: verifiedOaOwnerPubkey(event.tags, event.pubkey),
+    ownerPubkey: verifiedOaOwnerPubkey(event),
   );
 }
 

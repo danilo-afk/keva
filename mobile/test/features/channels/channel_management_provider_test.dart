@@ -4,6 +4,7 @@ import 'package:nostr/nostr.dart' as nostr;
 import 'package:buzz/features/channels/channel_management_provider.dart';
 import 'package:buzz/features/channels/mobile_huddle_controller.dart';
 import 'package:buzz/shared/relay/relay.dart';
+import '../../shared/crypto/nip_oa_test.dart' show authTag, profile;
 
 /// Tests for [channelDetailsFromEvent].
 ///
@@ -13,6 +14,36 @@ import 'package:buzz/shared/relay/relay.dart';
 /// also exposed on `ChannelDetails` MUST be propagated here — otherwise
 /// `mergeDetails` silently clears that state on the merged Channel.
 void main() {
+  test(
+    'directory ownership follows latest signed evidence in either order',
+    () {
+      final owner = nostr.Keys.generate();
+      final agent = nostr.Keys.generate();
+      final owned = profile(agent, [authTag(owner, agent.public)]);
+      final revoked = profile(agent, [], createdAt: 101);
+      final tie = profile(agent, []);
+      final forged = NostrEvent.fromJson({
+        ...profile(agent, [
+          authTag(owner, agent.public),
+        ], createdAt: 102).toJson(),
+        'content': '{} ',
+      });
+      for (final (events, expected) in [
+        ([owned], true),
+        ([owned, revoked], false),
+        ([owned, forged], false),
+        ([owned, tie], owned.id.compareTo(tie.id) < 0),
+      ]) {
+        for (final ordered in [events, events.reversed.toList()]) {
+          expect(
+            directoryUsersFromProfileEvents(ordered).single.isAgent,
+            expected,
+          );
+        }
+      }
+    },
+  );
+
   test('extracts unique relay members from current and legacy tags', () {
     final pubkeys = relayMemberPubkeysFromEvents([
       NostrEvent(

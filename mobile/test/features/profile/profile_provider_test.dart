@@ -1,3 +1,4 @@
+import '../../shared/crypto/nip_oa_test.dart' show profile;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -24,12 +25,10 @@ void main() {
       const ['custom', 'preserve-tag'],
     ];
     final relaySession = _ProfileRelaySession(
-      NostrEvent(
-        id: 'profile-1',
-        pubkey: keys.public,
+      profile(
+        keys,
+        profileTags,
         createdAt: 1,
-        kind: EventKind.profile,
-        tags: profileTags,
         content: jsonEncode({
           'name': 'alice',
           'display_name': 'Alice',
@@ -38,7 +37,6 @@ void main() {
           'nip05': 'alice@example.com',
           'custom': 'preserve-me',
         }),
-        sig: 'sig',
       ),
     );
     final container = ProviderContainer(

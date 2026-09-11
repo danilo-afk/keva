@@ -82,7 +82,7 @@ final agentOwnersProvider = FutureProvider<Map<String, String>>((ref) async {
   );
   final owners = <String, String>{};
   for (final event in events) {
-    final owner = verifiedOaOwnerPubkey(event.tags, event.pubkey);
+    final owner = verifiedOaOwnerPubkey(event);
     if (owner != null) owners[event.pubkey.toLowerCase()] = owner;
   }
   return owners;
