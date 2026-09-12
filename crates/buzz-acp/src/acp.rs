@@ -213,6 +213,8 @@ pub struct AcpClient {
     steer_rx: Option<tokio::sync::mpsc::Receiver<crate::pool::SteerRequest>>,
     /// Usage tracker for goose/buzz-agent's cumulative notification format.
     goose_usage: UsageTracker,
+    /// keva: agent text streamed during the in-flight turn (see `take_turn_text`).
+    turn_text: String,
     /// Per-turn prompt-response usage and Claude's optional cumulative cost.
     standard_usage: StandardUsageTracker,
     /// Known adapter identity for prompt-response usage mapping.
@@ -573,6 +575,7 @@ impl AcpClient {
             steering_supported: false,
             steer_rx: None,
             goose_usage: UsageTracker::default(),
+            turn_text: String::new(),
             standard_usage: StandardUsageTracker::default(),
             standard_adapter,
         })
@@ -807,6 +810,7 @@ impl AcpClient {
         // misattributed to this turn.
         self.goose_usage.begin_turn(session_id);
         self.standard_usage.begin_turn(session_id);
+        self.turn_text.clear();
 
         self.last_prompt_id = Some(self.next_id);
         let id = self.next_id;
@@ -901,6 +905,13 @@ impl AcpClient {
     /// Consume per-turn usage for NIP-AM publishing. Goose/buzz-agent is an
     /// exclusive cumulative path; standard ACP prompt usage is used only when
     /// goose emitted nothing for this turn.
+    /// keva: take the agent's streamed text for the turn that just ended.
+    /// Used by the pool's final-text fallback: a turn that ends with text but
+    /// never published a message gets that text posted on the agent's behalf.
+    pub fn take_turn_text(&mut self) -> String {
+        std::mem::take(&mut self.turn_text)
+    }
+
     pub fn take_turn_usage(&mut self) -> Option<TurnUsage> {
         let goose_usage = self.goose_usage.take();
         let standard_usage = self.standard_usage.take();
@@ -1773,6 +1784,9 @@ impl AcpClient {
             "agent_message_chunk" => {
                 if let Some(text) = update["content"]["text"].as_str() {
                     tracing::info!(target: "acp::stream", "{text}");
+                    if self.turn_text.len() < 64 * 1024 {
+                        self.turn_text.push_str(text);
+                    }
                 }
                 false
             }

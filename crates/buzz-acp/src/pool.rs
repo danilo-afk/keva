@@ -2264,6 +2264,19 @@ pub async fn run_prompt_task(
         .as_ref()
         .map(|b| b.events.iter().map(|be| be.event.id.to_hex()).collect())
         .unwrap_or_default();
+    // keva: where a final-text fallback reply would go (see
+    // `publish_final_text_if_unpublished`). Captured up front because `batch`
+    // is moved on the cancel paths.
+    let fallback_reply = batch.as_ref().and_then(|b| {
+        let last = b.events.last()?;
+        let tags = crate::queue::parse_thread_tags(&last.event);
+        Some(FallbackReplyTarget {
+            channel_id: b.channel_id,
+            trigger_id: last.event.id.to_hex(),
+            root_id: tags.root_event_id.clone(),
+            since: nostr::Timestamp::now(),
+        })
+    });
     agent.acp.observe(
         "turn_started",
         serde_json::json!({
@@ -3127,6 +3140,10 @@ pub async fn run_prompt_task(
                             );
                         }
                         log_stop_reason(&source, &StopReason::EndTurn);
+                        if let Some(target) = &fallback_reply {
+                            let text = agent.acp.take_turn_text();
+                            publish_final_text_if_unpublished(&ctx, target, text).await;
+                        }
                         if let PromptSource::Channel(scope) = &source {
                             let standing_sent = !agent.has_system_prompt_support();
                             record_scope_delivery_success(
@@ -3212,6 +3229,13 @@ pub async fn run_prompt_task(
                     "rotating session for {source:?} after {stop_reason:?}",
                 );
                 agent.state.invalidate(&source);
+            }
+
+            if let Some(target) = &fallback_reply {
+                let text = agent.acp.take_turn_text();
+                if matches!(stop_reason, StopReason::EndTurn) {
+                    publish_final_text_if_unpublished(&ctx, target, text).await;
+                }
             }
 
             let core_stop = acp_stop_to_core(&stop_reason);
@@ -5179,6 +5203,76 @@ pub(crate) async fn reaction_add(rest: &crate::relay::RestClient, event_id: &str
 /// batch is dead-lettered. Replies into the thread of `thread_tags` when the
 /// triggering event was threaded. Errors are logged and swallowed — the
 /// notice must never take down the main loop.
+/// keva: reply destination for the final-text fallback of one turn.
+struct FallbackReplyTarget {
+    channel_id: Uuid,
+    trigger_id: String,
+    root_id: Option<String>,
+    since: nostr::Timestamp,
+}
+
+fn final_text_fallback_enabled() -> bool {
+    std::env::var("BUZZ_ACP_PUBLISH_FINAL_TEXT")
+        .map(|v| !matches!(v.trim(), "0" | "false" | "no" | "off"))
+        .unwrap_or(true)
+}
+
+/// keva: publish the agent's final streamed text when the turn ended without
+/// the agent publishing anything itself.
+///
+/// The Buzz contract is "only what you publish through the CLI exists"; in
+/// practice smaller models answer in plain text and the answer was silently
+/// dropped. The harness knows both the text and whether a message by this
+/// agent landed in the channel since the turn started, so it closes the gap
+/// on the agent's behalf. Disable with `BUZZ_ACP_PUBLISH_FINAL_TEXT=0`.
+async fn publish_final_text_if_unpublished(
+    ctx: &PromptContext,
+    target: &FallbackReplyTarget,
+    text: String,
+) {
+    use nostr::{Alphabet, SingleLetterTag};
+    if !final_text_fallback_enabled() {
+        return;
+    }
+    let text = text.trim();
+    if text.is_empty() {
+        return;
+    }
+    let h_tag = SingleLetterTag::lowercase(Alphabet::H);
+    let filter = nostr::Filter::new()
+        .author(ctx.agent_keys.public_key())
+        .kinds([
+            nostr::Kind::Custom(buzz_core::kind::KIND_STREAM_MESSAGE as u16),
+            nostr::Kind::Custom(buzz_core::kind::KIND_STREAM_MESSAGE_V2 as u16),
+        ])
+        .custom_tags(h_tag, [target.channel_id.to_string()])
+        .since(target.since);
+    match ctx.rest_client.query(&[filter]).await {
+        Ok(v) if v.as_array().is_some_and(|a| !a.is_empty()) => {
+            tracing::debug!(target: "pool::fallback", "agent published during turn; no fallback");
+            return;
+        }
+        Ok(_) => {}
+        Err(e) => {
+            tracing::warn!(target: "pool::fallback", "could not check agent publications: {e}");
+            return;
+        }
+    }
+    let root = target.root_id.clone().unwrap_or_else(|| target.trigger_id.clone());
+    let thread_tags = ThreadTags {
+        root_event_id: Some(root),
+        parent_event_id: Some(target.trigger_id.clone()),
+        ..Default::default()
+    };
+    tracing::info!(
+        target: "pool::fallback",
+        channel = %target.channel_id,
+        chars = text.chars().count(),
+        "turn ended with unpublished text — posting it as the reply"
+    );
+    post_failure_notice(&ctx.rest_client, target.channel_id, &thread_tags, text).await;
+}
+
 pub(crate) async fn post_failure_notice(
     rest: &crate::relay::RestClient,
     channel_id: Uuid,
