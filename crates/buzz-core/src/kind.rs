@@ -318,6 +318,15 @@ pub const KIND_MANAGED_AGENT: u32 = 30177;
 /// allowlist pubkeys, no source or local ids, no filesystem paths, no secrets.
 pub const KIND_TEAM_CATALOG: u32 = 30178;
 
+/// NIP-KP (keva): Production — a film/series project (parameterized
+/// replaceable, owner-authored). Addressed by `(pubkey, kind, d_tag)` where
+/// `d_tag` is the production slug. Content is JSON (name, format, aspect,
+/// status, `context`). Channels are `["c", <channel uuid>]` tags and agent
+/// instructions are `["agent", <pubkey hex>, <instructions>]` tags. Never
+/// channel-scoped: the `c` tag is a reference, not an `h` scope. See
+/// `docs/nips/NIP-KP.md`.
+pub const KIND_PRODUCTION: u32 = 30180;
+
 // NIP-56 reporting
 /// NIP-56: Report an event, pubkey, or blob to relay moderators (kind:1984).
 ///
@@ -658,6 +667,7 @@ pub const ALL_KINDS: &[u32] = &[
     KIND_TEAM,
     KIND_MANAGED_AGENT,
     KIND_TEAM_CATALOG,
+    KIND_PRODUCTION,
     KIND_PRIVATE_MANAGED_AGENT,
     KIND_REPORT,
     KIND_PRODUCT_FEEDBACK,

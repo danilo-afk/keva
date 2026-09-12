@@ -1461,6 +1461,9 @@ async fn resolve_new_session_channel_context(
 struct NewSessionChannelContext<'a> {
     huddle_instructions: Option<&'a str>,
     canvas: Option<&'a str>,
+    /// NIP-KP (keva): rendered `<production>` section, absent when the channel
+    /// belongs to no production.
+    production: Option<&'a str>,
     name: Option<&'a str>,
     scope: Option<&'a SessionScope>,
     channel_type: Option<&'a str>,
@@ -1479,7 +1482,8 @@ async fn create_session_and_apply_model(
     // its own `<core-memory>` boundary, and canvas carries its own
     // `<channel-canvas>` boundary; both are appended with a blank-line separator.
     let is_goose = agent.agent_name == "goose";
-    let combined_system_prompt = with_canvas(
+    let combined_system_prompt = with_production(
+        with_canvas(
         with_huddle_instructions(
             with_core(
                 with_team(
@@ -1495,6 +1499,8 @@ async fn create_session_and_apply_model(
             channel.huddle_instructions,
         ),
         channel.canvas,
+        ),
+        channel.production,
     );
 
     let session_title = ctx.session_title.as_deref().map(|agent_name| {
@@ -2155,6 +2161,16 @@ fn with_core(framed: Option<String>, core: Option<&str>) -> Option<String> {
     }
 }
 
+/// keva: append the `<production>` section (NIP-KP) after the canvas.
+fn with_production(prompt: Option<String>, production: Option<&str>) -> Option<String> {
+    match (prompt, production) {
+        (Some(p), Some(s)) => Some(format!("{p}\n\n{s}")),
+        (Some(p), None) => Some(p),
+        (None, Some(s)) => Some(s.to_string()),
+        (None, None) => None,
+    }
+}
+
 /// Append owner-signed huddle instructions to this channel session's system prompt.
 fn with_huddle_instructions(prompt: Option<String>, instructions: Option<&str>) -> Option<String> {
     let instructions = instructions
@@ -2492,6 +2508,31 @@ pub async fn run_prompt_task(
         PromptSource::Heartbeat => None,
     };
 
+    // keva NIP-KP: the production this channel belongs to, fetched only when a
+    // new session is about to be created (a production edit lands on the next
+    // session, exactly like the core memory and the canvas).
+    let agent_production: Option<String> = match &source {
+        PromptSource::Channel(scope) if !agent.state.sessions.contains_key(scope) => {
+            const PRODUCTION_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+            let agent_pk = ctx.agent_keys.public_key();
+            let fetch = crate::production_fetch::build_production_section(
+                &ctx.rest_client,
+                scope.channel_id(),
+                &agent_pk,
+            );
+            match tokio::time::timeout(PRODUCTION_FETCH_TIMEOUT, fetch).await {
+                Ok(section) => {
+                    if let Some(s) = &section {
+                        tracing::info!(target: "production", channel = %scope.channel_id(), section_len = s.len(), "injected <production> section");
+                    }
+                    section
+                }
+                Err(_) => None,
+            }
+        }
+        _ => None,
+    };
+
     let (session_id, is_new_session) = match &source {
         PromptSource::Channel(scope) => {
             let cid = &scope.channel_id();
@@ -2508,6 +2549,7 @@ pub async fn run_prompt_task(
                     NewSessionChannelContext {
                         huddle_instructions: huddle_instructions.as_deref(),
                         canvas: agent_canvas.as_deref(),
+                        production: agent_production.as_deref(),
                         name: title_channel.as_deref(),
                         scope: Some(scope),
                         channel_type: origin_channel_type.as_deref(),
@@ -2574,6 +2616,7 @@ pub async fn run_prompt_task(
                     NewSessionChannelContext {
                         huddle_instructions: None,
                         canvas: None,
+                        production: None,
                         name: None,
                         scope: None,
                         channel_type: None,
@@ -10393,6 +10436,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10430,6 +10474,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10464,6 +10509,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10497,6 +10543,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10537,6 +10584,7 @@ exit 0"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10701,6 +10749,7 @@ done"#
                     NewSessionChannelContext {
                         huddle_instructions: None,
                         canvas: None,
+                        production: None,
                         name,
                         scope,
                         channel_type,
@@ -10818,6 +10867,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10889,6 +10939,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10944,6 +10995,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -10986,6 +11038,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -11027,6 +11080,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -11093,6 +11147,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -11130,6 +11185,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -11203,6 +11259,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,
@@ -11244,6 +11301,7 @@ done"#
             NewSessionChannelContext {
                 huddle_instructions: None,
                 canvas: None,
+                production: None,
                 name: None,
                 scope: None,
                 channel_type: None,

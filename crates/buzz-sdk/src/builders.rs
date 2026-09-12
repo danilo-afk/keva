@@ -262,6 +262,50 @@ pub fn build_message(
         .allow_self_tagging())
 }
 
+/// Build a production event (kind 30180, NIP-KP).
+///
+/// - `slug`: stable id (`d` tag), lowercase kebab-case
+/// - `content_json`: the production body (name, format, aspect, status, context)
+/// - `channels`: channel UUIDs the production spans (`c` tags)
+/// - `agents`: `(pubkey hex, optional per-production instructions)` (`agent` tags)
+pub fn build_production(
+    slug: &str,
+    content_json: &str,
+    channels: &[Uuid],
+    agents: &[(String, Option<String>)],
+) -> Result<EventBuilder, SdkError> {
+    let slug = slug.trim();
+    if slug.is_empty()
+        || slug.len() > 64
+        || !slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return Err(SdkError::InvalidInput(
+            "production slug must be 1-64 chars of [a-z0-9-]".into(),
+        ));
+    }
+    check_content(content_json, 64 * 1024)?;
+    serde_json::from_str::<serde_json::Value>(content_json)
+        .map_err(|e| SdkError::InvalidInput(format!("production content must be JSON: {e}")))?;
+    let mut tags = vec![tag(&["d", slug])?];
+    for ch in channels {
+        tags.push(tag(&["c", &ch.to_string()])?);
+    }
+    for (pubkey, instructions) in agents {
+        let pk = check_pubkey_hex(pubkey, "agent pubkey")?;
+        match instructions.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            Some(instr) => tags.push(tag(&["agent", &pk, instr])?),
+            None => tags.push(tag(&["agent", &pk])?),
+        }
+    }
+    Ok(EventBuilder::new(
+        Kind::Custom(buzz_core::kind::KIND_PRODUCTION as u16),
+        content_json,
+    )
+    .tags(tags))
+}
+
 /// Build an encrypted agent observer frame (kind 24200).
 ///
 /// `recipient_pubkey` is the cleartext `p` tag used by the relay for owner-only

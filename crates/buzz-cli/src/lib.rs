@@ -273,6 +273,9 @@ enum Cmd {
     /// Agent engram management — persistent memory per NIP-AE
     #[command(subcommand)]
     Mem(MemCmd),
+    /// Productions (keva, NIP-KP): film/series projects grouping channels and agents
+    #[command(subcommand)]
+    Productions(ProductionsCmd),
     /// Persona pack operations (local, no relay connection needed)
     #[command(subcommand)]
     Pack(PackCmd),
@@ -1892,6 +1895,47 @@ pub enum MediaCmd {
     },
 }
 
+/// NIP-KP (keva) productions.
+#[derive(Subcommand)]
+pub enum ProductionsCmd {
+    /// List your productions (JSON)
+    List,
+    /// Show one production by slug (JSON)
+    Get { slug: String },
+    /// Create a production, or publish a new version of it with --replace.
+    /// Omitted fields keep their previous value; --channel/--agent replace the whole set when given.
+    Create {
+        /// Stable id: lowercase kebab-case (e.g. "jony")
+        slug: String,
+        #[arg(long)]
+        name: Option<String>,
+        /// e.g. microdrama, series, trailer
+        #[arg(long)]
+        format: Option<String>,
+        /// e.g. 9:16, 16:9
+        #[arg(long)]
+        aspect: Option<String>,
+        /// e.g. draft, active, archived
+        #[arg(long)]
+        status: Option<String>,
+        /// Shortcut for context.premise
+        #[arg(long)]
+        premise: Option<String>,
+        /// JSON file with the production context (premise, bible, characters, visual_style, continuity_rules, ...)
+        #[arg(long)]
+        context_file: Option<String>,
+        /// Channel UUID (repeatable)
+        #[arg(long)]
+        channel: Vec<String>,
+        /// Agent pubkey hex, optionally "=instructions for this production" (repeatable)
+        #[arg(long)]
+        agent: Vec<String>,
+        /// Publish over an existing production with the same slug
+        #[arg(long, default_value_t = false)]
+        replace: bool,
+    },
+}
+
 /// Subcommands for `buzz mem`.
 #[derive(Subcommand)]
 pub enum MemCmd {
@@ -2191,6 +2235,7 @@ async fn run(cli: Cli) -> Result<(), CliError> {
         Cmd::Media(sub) => commands::upload::dispatch_media(sub, &client).await,
         Cmd::Upload(sub) => commands::upload::dispatch(sub, &client).await,
         Cmd::Mem(sub) => commands::mem::dispatch(sub, &client).await,
+        Cmd::Productions(sub) => commands::productions::dispatch(sub, &client).await,
         Cmd::Moderation(sub) => commands::moderation::dispatch(sub, &client, &cli.format).await,
         Cmd::Pack(_) => unreachable!("handled above"),
     }
