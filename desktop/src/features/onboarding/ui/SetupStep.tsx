@@ -209,7 +209,7 @@ function RuntimeStatus({
     return (
       <div
         aria-label={`Installing ${runtime.label}`}
-        className="flex h-5 items-center gap-2 rounded-full bg-white/60 px-2.5 font-mono text-badge font-normal uppercase text-foreground"
+        className="flex h-5 items-center gap-2 rounded-full bg-foreground/12 px-2.5 font-mono text-badge font-normal uppercase text-foreground"
         role="status"
       >
         <Spinner className="h-3 w-3 border-2 text-foreground" />
@@ -230,7 +230,7 @@ function RuntimeStatus({
       return (
         <div
           aria-label={`Rechecking ${runtime.label}`}
-          className="flex h-5 items-center gap-2 rounded-full bg-[#EBEFEF] px-2.5 font-mono text-badge font-normal uppercase text-foreground"
+          className="flex h-5 items-center gap-2 rounded-full bg-foreground/12 px-2.5 font-mono text-badge font-normal uppercase text-foreground"
           data-testid={`onboarding-runtime-rechecking-${runtime.id}`}
           role="status"
         >
@@ -257,7 +257,7 @@ function RuntimeStatus({
       <Tooltip>
         <TooltipTrigger asChild>
           <span
-            className="inline-flex h-5 cursor-default items-center rounded-full bg-[#EBEFEF] px-2.5 font-mono text-badge font-normal uppercase text-foreground"
+            className="inline-flex h-5 cursor-default items-center rounded-full bg-foreground/12 px-2.5 font-mono text-badge font-normal uppercase text-foreground"
             data-testid={`onboarding-runtime-ready-${runtime.id}`}
           >
             READY
@@ -682,7 +682,7 @@ function RuntimeProvidersSection({
           <RuntimeProvidersLoadingState />
         ) : errorMessage ? null : (
           <p
-            className="max-w-[560px] rounded-2xl bg-white/70 px-6 py-6 text-sm text-muted-foreground"
+            className="max-w-[560px] rounded-2xl bg-foreground/8 px-6 py-6 text-sm text-muted-foreground"
             data-testid="onboarding-acp-empty"
           >
             No supported command-line harnesses were detected yet. Install a
