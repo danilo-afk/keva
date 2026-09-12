@@ -2,15 +2,31 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  ArrowDown,
+  ArrowUp,
   Film,
   LayoutGrid,
+  Pencil,
+  Plus,
   Table2,
+  Trash2,
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/shared/lib/cn";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { pickAndUploadMedia } from "@/shared/api/tauri";
 import { toast as notify } from "sonner";
@@ -19,6 +35,7 @@ import { usePublishEntityMutation } from "../entityHooks";
 import {
   type Episode,
   episodeToContent,
+  isValidEntityId,
   SHOT_STATES,
   type Shot,
   type ShotState,
@@ -41,6 +58,88 @@ import {
 } from "./productionUi";
 
 type EpisodesView = "list" | "board";
+
+export function emptyShot(n: number): Shot {
+  return {
+    n,
+    start: "",
+    end: "",
+    scene: "",
+    framing: "",
+    action: "",
+    dialogue: "",
+    sound: "",
+    cast: "",
+    storyboardPrompt: "",
+    videoPrompt: "",
+    frames: [],
+    clip: null,
+    state: "cartela",
+    notes: "",
+  };
+}
+
+function renumber(shots: Shot[]): Shot[] {
+  return shots.map((shot, i) =>
+    shot.n === i + 1 ? shot : { ...shot, n: i + 1 },
+  );
+}
+
+type EpisodeMeta = Pick<
+  Episode,
+  "number" | "title" | "block" | "blockTitle" | "year" | "duration" | "aspect"
+>;
+
+function EpisodeMetaForm({
+  value,
+  onChange,
+}: {
+  value: EpisodeMeta;
+  onChange: (next: EpisodeMeta) => void;
+}) {
+  const field = (
+    key: keyof EpisodeMeta,
+    label: string,
+    placeholder?: string,
+    className?: string,
+  ) => (
+    <div className={cn("space-y-1", className)} key={key}>
+      <label
+        className="text-xs font-medium text-muted-foreground"
+        htmlFor={`ep-${key}`}
+      >
+        {label}
+      </label>
+      <Input
+        className="h-8"
+        id={`ep-${key}`}
+        onChange={(e) =>
+          onChange({
+            ...value,
+            [key]:
+              key === "number" ? Number(e.target.value) || 0 : e.target.value,
+          })
+        }
+        placeholder={placeholder}
+        type={key === "number" ? "number" : "text"}
+        value={
+          key === "number" ? String(value.number || "") : (value[key] as string)
+        }
+      />
+    </div>
+  );
+  return (
+    <div className="grid gap-3 md:grid-cols-6">
+      {field("number", "Number", "1", "md:col-span-1")}
+      {field("title", "Title", "A VALA", "md:col-span-3")}
+      {field("duration", "Duration", "37 s")}
+      {field("aspect", "Aspect", "2.39:1")}
+      {field("block", "Block", "Bloco I", "md:col-span-2")}
+      {field("blockTitle", "Block title", "Prólogo", "md:col-span-2")}
+      {field("year", "Year / period", "Ashcombe, 1478", "md:col-span-2")}
+    </div>
+  );
+}
 
 function ViewToggle({
   value,
@@ -90,9 +189,86 @@ export function ProductionEpisodesTab({
   onNavigate: ProductionNavigate;
 }) {
   const [view, setView] = React.useState<EpisodesView>("list");
+  const publish = usePublishEntityMutation("ep", production.slug);
+  const [creating, setCreating] = React.useState(false);
+  const [newTitle, setNewTitle] = React.useState("");
   const selected = entityId
     ? (episodes.find((e) => e.id === entityId) ?? null)
     : null;
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault();
+    const number =
+      (episodes.reduce((max, e) => Math.max(max, e.number), 0) || 0) + 1;
+    const id = `ep${String(number).padStart(2, "0")}`;
+    if (!isValidEntityId(id) || episodes.some((e) => e.id === id)) return;
+    const last = episodes[episodes.length - 1];
+    try {
+      await publish.mutateAsync({
+        id,
+        content: episodeToContent({
+          number,
+          title: newTitle.trim() || `Episode ${number}`,
+          block: last?.block ?? "",
+          blockTitle: last?.blockTitle ?? "",
+          year: last?.year ?? "",
+          duration: "",
+          aspect: last?.aspect ?? production.aspect,
+          storyboardPrompt: "",
+          shots: [],
+        }),
+      });
+      setCreating(false);
+      setNewTitle("");
+      onNavigate({ tab: "episodes", id });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to create the episode.",
+      );
+    }
+  }
+
+  const createForm = (
+    <form className="flex items-center gap-2" onSubmit={handleCreate}>
+      <Input
+        autoFocus
+        className="h-8 w-56"
+        data-testid="episode-new-title"
+        onChange={(e) => setNewTitle(e.target.value)}
+        placeholder="Episode title"
+        value={newTitle}
+      />
+      <Button
+        data-testid="episode-new-submit"
+        disabled={publish.isPending}
+        size="sm"
+        type="submit"
+      >
+        Create
+      </Button>
+      <Button
+        onClick={() => setCreating(false)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        Cancel
+      </Button>
+    </form>
+  );
+  const newButton = (
+    <Button
+      data-testid="episode-new"
+      onClick={() => setCreating(true)}
+      size="sm"
+      type="button"
+      variant="outline"
+    >
+      <Plus className="mr-1 h-3.5 w-3.5" /> New episode
+    </Button>
+  );
   if (selected) {
     return (
       <EpisodeDetail
@@ -106,7 +282,8 @@ export function ProductionEpisodesTab({
   if (!isPending && episodes.length === 0) {
     return (
       <EmptyState
-        description={`Import a script or create episodes with \`buzz productions episodes set --slug ${production.slug} <id>\`.`}
+        action={creating ? createForm : newButton}
+        description="Each episode holds its shot list. Agents can also create them with the CLI."
         title="No episodes yet"
       />
     );
@@ -156,7 +333,8 @@ export function ProductionEpisodesTab({
   }
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {creating ? createForm : newButton}
         <ViewToggle onChange={setView} value={view} />
       </div>
       {[...blocks.entries()].map(([block, eps]) => {
@@ -231,8 +409,63 @@ function EpisodeDetail({
   const [shots, setShots] = React.useState<Shot[]>(episode.shots);
   const [open, setOpen] = React.useState<number | null>(null);
   const [view, setView] = React.useState<EpisodesView>("board");
+  const [meta, setMeta] = React.useState<EpisodeMeta>({
+    number: episode.number,
+    title: episode.title,
+    block: episode.block,
+    blockTitle: episode.blockTitle,
+    year: episode.year,
+    duration: episode.duration,
+    aspect: episode.aspect,
+  });
+  const [editingMeta, setEditingMeta] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const metaDirty =
+    meta.number !== episode.number ||
+    meta.title !== episode.title ||
+    meta.block !== episode.block ||
+    meta.blockTitle !== episode.blockTitle ||
+    meta.year !== episode.year ||
+    meta.duration !== episode.duration ||
+    meta.aspect !== episode.aspect;
+
+  function addShot() {
+    setShots((cur) => {
+      const next = [...cur, emptyShot(cur.length + 1)];
+      setOpen(next.length - 1);
+      setView("list");
+      return next;
+    });
+  }
+  function removeShot(index: number) {
+    setShots((cur) => renumber(cur.filter((_, i) => i !== index)));
+    setOpen(null);
+  }
+  function moveShot(index: number, delta: number) {
+    setShots((cur) => {
+      const target = index + delta;
+      if (target < 0 || target >= cur.length) return cur;
+      const next = [...cur];
+      [next[index], next[target]] = [next[target], next[index]];
+      setOpen(target);
+      return renumber(next);
+    });
+  }
+
+  async function handleDeleteEpisode() {
+    try {
+      await publish.mutateAsync({ id: episode.id, content: { deleted: true } });
+      toast.success(`EP. ${String(episode.number).padStart(2, "0")} deleted.`);
+      onBack();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete.");
+    } finally {
+      setConfirmDelete(false);
+    }
+  }
   const counts = shotProgress(shots);
-  const dirty = JSON.stringify(shots) !== JSON.stringify(episode.shots);
+  const dirty =
+    JSON.stringify(shots) !== JSON.stringify(episode.shots) || metaDirty;
 
   function updateShot(index: number, patch: Partial<Shot>) {
     setShots((cur) =>
@@ -244,8 +477,9 @@ function EpisodeDetail({
     try {
       await publish.mutateAsync({
         id: episode.id,
-        content: episodeToContent({ ...episode, shots }),
+        content: episodeToContent({ ...episode, ...meta, shots }),
       });
+      setEditingMeta(false);
       toast.success("Episode saved.");
     } catch (error) {
       toast.error(
@@ -285,6 +519,35 @@ function EpisodeDetail({
         <div className="flex items-center gap-2">
           <ViewToggle onChange={setView} value={view} />
           <Button
+            aria-label="Edit episode"
+            data-testid="production-episode-edit"
+            onClick={() => setEditingMeta((v) => !v)}
+            size="sm"
+            type="button"
+            variant={editingMeta ? "secondary" : "outline"}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            aria-label="Delete episode"
+            data-testid="production-episode-delete"
+            onClick={() => setConfirmDelete(true)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            data-testid="production-episode-add-shot"
+            onClick={addShot}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" /> Shot
+          </Button>
+          <Button
             data-testid="production-episode-save"
             disabled={!dirty || publish.isPending}
             onClick={() => void handleSave()}
@@ -295,6 +558,43 @@ function EpisodeDetail({
           </Button>
         </div>
       </div>
+      {editingMeta ? (
+        <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <EpisodeMetaForm onChange={setMeta} value={meta} />
+        </div>
+      ) : null}
+      <AlertDialog onOpenChange={setConfirmDelete} open={confirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this episode?</AlertDialogTitle>
+            <AlertDialogDescription>
+              EP. {String(episode.number).padStart(2, "0")} {episode.title} and
+              its {shots.length} shots are removed from the production. Uploaded
+              frames stay in the media store.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                data-testid="production-episode-delete-confirm"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleDeleteEpisode();
+                }}
+                type="button"
+                variant="destructive"
+              >
+                Delete episode
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-center gap-3">
         <ShotProgressBar className="flex-1" counts={counts} />
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -405,7 +705,11 @@ function EpisodeDetail({
                     <tr className="border-t border-border/40 bg-background/40">
                       <td className="px-4 py-4" colSpan={8}>
                         <ShotEditor
+                          canMoveDown={index < shots.length - 1}
+                          canMoveUp={index > 0}
                           onChange={(patch) => updateShot(index, patch)}
+                          onMove={(delta) => moveShot(index, delta)}
+                          onRemove={() => removeShot(index)}
                           shot={shot}
                         />
                       </td>
@@ -424,9 +728,17 @@ function EpisodeDetail({
 function ShotEditor({
   shot,
   onChange,
+  onRemove,
+  onMove,
+  canMoveUp,
+  canMoveDown,
 }: {
   shot: Shot;
   onChange: (patch: Partial<Shot>) => void;
+  onRemove: () => void;
+  onMove: (delta: number) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   const media = useMediaSrc();
   const [lightbox, setLightbox] = React.useState<number | null>(null);
@@ -446,112 +758,220 @@ function ShotEditor({
       setUploading(false);
     }
   }
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_1fr_280px]">
-      <ProductionLightbox
-        images={shot.frames.map((url) => ({ url }))}
-        index={lightbox}
-        onClose={() => setLightbox(null)}
-        onIndexChange={setLightbox}
-        onRemove={(i) => {
-          setLightbox(null);
-          onChange({ frames: shot.frames.filter((_, idx) => idx !== i) });
-        }}
+  const text = (key: keyof Shot, label: string, placeholder?: string) => (
+    <div className="space-y-1">
+      <label
+        className="text-xs font-medium text-muted-foreground"
+        htmlFor={`shot-${shot.n}-${key}`}
+      >
+        {label}
+      </label>
+      <Input
+        className="h-8"
+        id={`shot-${shot.n}-${key}`}
+        onChange={(e) => onChange({ [key]: e.target.value } as Partial<Shot>)}
+        placeholder={placeholder}
+        value={String(shot[key] ?? "")}
       />
-      <div className="space-y-1.5">
-        <Kicker>Storyboard prompt</Kicker>
-        <Textarea
-          className="min-h-0 font-mono text-xs leading-relaxed"
-          onChange={(e) => onChange({ storyboardPrompt: e.target.value })}
-          rows={8}
-          value={shot.storyboardPrompt}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Kicker>Video prompt</Kicker>
-        <Textarea
-          className="min-h-0 font-mono text-xs leading-relaxed"
-          onChange={(e) => onChange({ videoPrompt: e.target.value })}
-          rows={8}
-          value={shot.videoPrompt}
-        />
-      </div>
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Kicker>State</Kicker>
-          <select
-            className={`${SELECT_CLASS} w-full`}
-            onChange={(e) => onChange({ state: e.target.value as ShotState })}
-            value={shot.state}
+    </div>
+  );
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Kicker>Shot {shot.n}</Kicker>
+        <div className="flex items-center gap-1">
+          <Button
+            aria-label="Move up"
+            className="h-7 w-7 p-0"
+            disabled={!canMoveUp}
+            onClick={() => onMove(-1)}
+            size="sm"
+            type="button"
+            variant="ghost"
           >
-            {SHOT_STATES.map((s) => (
-              <option key={s} value={s}>
-                {SHOT_STATE_LABEL[s]}
-              </option>
-            ))}
-          </select>
+            <ArrowUp className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            aria-label="Move down"
+            className="h-7 w-7 p-0"
+            disabled={!canMoveDown}
+            onClick={() => onMove(1)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            className="h-7 text-xs text-destructive hover:text-destructive"
+            data-testid={`shot-remove-${shot.n}`}
+            onClick={onRemove}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove shot
+          </Button>
         </div>
-        {shot.cast ? (
-          <div>
-            <Kicker>Cast</Kicker>
-            <p className="mt-1 text-sm">{shot.cast}</p>
-          </div>
-        ) : null}
-        <div>
-          <div className="flex items-center justify-between">
-            <Kicker>Frames ({shot.frames.length})</Kicker>
-            <Button
-              className="h-7 px-2 text-xs"
-              disabled={uploading}
-              onClick={() => void handleAddFrames()}
-              size="sm"
-              type="button"
-              variant="ghost"
+      </div>
+      <div className="grid gap-3 md:grid-cols-6">
+        {text("start", "Start", "00:00")}
+        {text("end", "End", "00:06")}
+        <div className="md:col-span-2">
+          {text("scene", "Scene", "EXT. VALE DO SEVERN")}
+        </div>
+        <div className="md:col-span-2">
+          {text("framing", "Shot / framing", "NOITE · plano geral")}
+        </div>
+        <div className="md:col-span-3">
+          {text("cast", "Cast", "Jony (11), Maya (11)")}
+        </div>
+        <div className="md:col-span-3">
+          {text("dialogue", "Dialogue", "Agnes: Jony, acorda!")}
+        </div>
+        <div className="space-y-1 md:col-span-4">
+          <label
+            className="text-xs font-medium text-muted-foreground"
+            htmlFor={`shot-${shot.n}-action`}
+          >
+            What we see
+          </label>
+          <Textarea
+            className="min-h-0"
+            id={`shot-${shot.n}-action`}
+            onChange={(e) => onChange({ action: e.target.value })}
+            rows={2}
+            value={shot.action}
+          />
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <label
+            className="text-xs font-medium text-muted-foreground"
+            htmlFor={`shot-${shot.n}-sound`}
+          >
+            Sound
+          </label>
+          <Textarea
+            className="min-h-0"
+            id={`shot-${shot.n}-sound`}
+            onChange={(e) => onChange({ sound: e.target.value })}
+            rows={2}
+            value={shot.sound}
+          />
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_280px]">
+        <ProductionLightbox
+          images={shot.frames.map((url) => ({ url }))}
+          index={lightbox}
+          onClose={() => setLightbox(null)}
+          onIndexChange={setLightbox}
+          onRemove={(i) => {
+            setLightbox(null);
+            onChange({ frames: shot.frames.filter((_, idx) => idx !== i) });
+          }}
+        />
+        <div className="space-y-1.5">
+          <Kicker>Storyboard prompt</Kicker>
+          <Textarea
+            className="min-h-0 font-mono text-xs leading-relaxed"
+            onChange={(e) => onChange({ storyboardPrompt: e.target.value })}
+            rows={8}
+            value={shot.storyboardPrompt}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Kicker>Video prompt</Kicker>
+          <Textarea
+            className="min-h-0 font-mono text-xs leading-relaxed"
+            onChange={(e) => onChange({ videoPrompt: e.target.value })}
+            rows={8}
+            value={shot.videoPrompt}
+          />
+        </div>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Kicker>State</Kicker>
+            <select
+              className={`${SELECT_CLASS} w-full`}
+              onChange={(e) => onChange({ state: e.target.value as ShotState })}
+              value={shot.state}
             >
-              {uploading ? "Uploading…" : "Add"}
-            </Button>
-          </div>
-          {shot.frames.length > 0 ? (
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {shot.frames.map((url, i) => (
-                <button
-                  className="overflow-hidden rounded-md border border-border/60 hover:border-foreground/40"
-                  key={url}
-                  onClick={() => setLightbox(i)}
-                  type="button"
-                >
-                  <img alt="" className="h-16 object-cover" src={media(url)} />
-                </button>
+              {SHOT_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {SHOT_STATE_LABEL[s]}
+                </option>
               ))}
+            </select>
+          </div>
+          {shot.cast ? (
+            <div>
+              <Kicker>Cast</Kicker>
+              <p className="mt-1 text-sm">{shot.cast}</p>
+            </div>
+          ) : null}
+          <div>
+            <div className="flex items-center justify-between">
+              <Kicker>Frames ({shot.frames.length})</Kicker>
+              <Button
+                className="h-7 px-2 text-xs"
+                disabled={uploading}
+                onClick={() => void handleAddFrames()}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {uploading ? "Uploading…" : "Add"}
+              </Button>
+            </div>
+            {shot.frames.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {shot.frames.map((url, i) => (
+                  <button
+                    className="overflow-hidden rounded-md border border-border/60 hover:border-foreground/40"
+                    key={url}
+                    onClick={() => setLightbox(i)}
+                    type="button"
+                  >
+                    <img
+                      alt=""
+                      className="h-16 object-cover"
+                      src={media(url)}
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">
+                No frames yet.
+              </p>
+            )}
+          </div>
+          {shot.clip ? (
+            <div>
+              <Kicker>Clip</Kicker>
+              {/* biome-ignore lint/a11y/useMediaCaption: generated clips carry no captions */}
+              <video
+                className="mt-1 w-full rounded-md border border-border/60"
+                controls
+                preload="metadata"
+                src={media(shot.clip)}
+              />
             </div>
           ) : (
-            <p className="mt-1 text-xs text-muted-foreground">No frames yet.</p>
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Film className="h-3.5 w-3.5" /> No clip yet
+            </p>
           )}
-        </div>
-        {shot.clip ? (
-          <div>
-            <Kicker>Clip</Kicker>
-            {/* biome-ignore lint/a11y/useMediaCaption: generated clips carry no captions */}
-            <video
-              className="mt-1 w-full rounded-md border border-border/60"
-              controls
-              preload="metadata"
-              src={media(shot.clip)}
+          <div className="space-y-1.5">
+            <Kicker>Notes</Kicker>
+            <Textarea
+              className="min-h-0 text-xs"
+              onChange={(e) => onChange({ notes: e.target.value })}
+              rows={3}
+              value={shot.notes}
             />
           </div>
-        ) : (
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Film className="h-3.5 w-3.5" /> No clip yet
-          </p>
-        )}
-        <div className="space-y-1.5">
-          <Kicker>Notes</Kicker>
-          <Textarea
-            className="min-h-0 text-xs"
-            onChange={(e) => onChange({ notes: e.target.value })}
-            rows={3}
-            value={shot.notes}
-          />
         </div>
       </div>
     </div>

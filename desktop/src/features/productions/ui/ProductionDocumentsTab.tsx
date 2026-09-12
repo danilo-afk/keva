@@ -1,8 +1,18 @@
-import { FileText, Pencil, Plus } from "lucide-react";
+import { FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/shared/lib/cn";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Markdown } from "@/shared/ui/markdown";
@@ -159,6 +169,7 @@ export function ProductionDocumentsTab({
         <DocumentView
           doc={selected}
           key={selected.eventId}
+          onDeleted={() => onNavigate({ tab: "documents" })}
           production={production}
         />
       ) : (
@@ -171,12 +182,27 @@ export function ProductionDocumentsTab({
 function DocumentView({
   doc,
   production,
+  onDeleted,
 }: {
   doc: ProductionDocument;
   production: Production;
+  onDeleted: () => void;
 }) {
   const publish = usePublishEntityMutation("doc", production.slug);
   const [editing, setEditing] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+
+  async function handleDelete() {
+    try {
+      await publish.mutateAsync({ id: doc.id, content: { deleted: true } });
+      toast.success(`"${doc.title}" deleted.`);
+      onDeleted();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete.");
+    } finally {
+      setConfirmDelete(false);
+    }
+  }
   const [title, setTitle] = React.useState(doc.title);
   const [body, setBody] = React.useState(doc.body);
 
@@ -199,6 +225,37 @@ function DocumentView({
 
   return (
     <article className="min-w-0">
+      <AlertDialog onOpenChange={setConfirmDelete} open={confirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{doc.title}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Agents stop seeing it in the production index. This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                data-testid="production-doc-delete-confirm"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleDelete();
+                }}
+                type="button"
+                variant="destructive"
+              >
+                Delete
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <header className="mb-4 flex items-start justify-between gap-4 border-b border-border/60 pb-4">
         <div className="min-w-0">
           {editing ? (
@@ -253,15 +310,27 @@ function DocumentView({
               </Button>
             </>
           ) : (
-            <Button
-              data-testid="production-doc-edit"
-              onClick={() => setEditing(true)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-            </Button>
+            <>
+              <Button
+                aria-label="Delete document"
+                data-testid="production-doc-delete"
+                onClick={() => setConfirmDelete(true)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                data-testid="production-doc-edit"
+                onClick={() => setEditing(true)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+              </Button>
+            </>
           )}
         </div>
       </header>
