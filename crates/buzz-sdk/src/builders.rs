@@ -306,6 +306,43 @@ pub fn build_production(
     .tags(tags))
 }
 
+/// Build a production entity (document 30181, episode 30182, character 30183).
+/// `d_tag` is `<slug>/<doc|ep|char>/<id>`; content is a JSON object (≤ 256 KiB).
+pub fn build_production_entity(
+    kind: u32,
+    d_tag: &str,
+    content_json: &str,
+) -> Result<EventBuilder, SdkError> {
+    if !matches!(
+        kind,
+        buzz_core::kind::KIND_PRODUCTION_DOCUMENT
+            | buzz_core::kind::KIND_PRODUCTION_EPISODE
+            | buzz_core::kind::KIND_PRODUCTION_CHARACTER
+    ) {
+        return Err(SdkError::InvalidInput(format!("{kind} is not a production entity kind")));
+    }
+    let d_tag = d_tag.trim();
+    let parts: Vec<&str> = d_tag.split('/').collect();
+    let ok = parts.len() == 3
+        && parts.iter().all(|p| {
+            !p.is_empty()
+                && p.len() <= 64
+                && p.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+        });
+    if !ok {
+        return Err(SdkError::InvalidInput(
+            "entity d tag must be <slug>/<doc|ep|char>/<id> in [a-z0-9-_]".into(),
+        ));
+    }
+    check_content(content_json, 256 * 1024)?;
+    let value: serde_json::Value = serde_json::from_str(content_json)
+        .map_err(|e| SdkError::InvalidInput(format!("entity content must be JSON: {e}")))?;
+    if !value.is_object() {
+        return Err(SdkError::InvalidInput("entity content must be a JSON object".into()));
+    }
+    Ok(EventBuilder::new(Kind::Custom(kind as u16), content_json).tags(vec![tag(&["d", d_tag])?]))
+}
+
 /// Build an encrypted agent observer frame (kind 24200).
 ///
 /// `recipient_pubkey` is the cleartext `p` tag used by the relay for owner-only

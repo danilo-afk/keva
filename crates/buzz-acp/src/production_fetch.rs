@@ -6,7 +6,7 @@
 //! recreated). Any error emits nothing — a relay hiccup must not make the
 //! agent believe there is no production.
 
-use buzz_core::kind::KIND_PRODUCTION;
+use buzz_core::kind::{KIND_PRODUCTION, KIND_PRODUCTION_DOCUMENT};
 use nostr::{Alphabet, Event, PublicKey, SingleLetterTag};
 use uuid::Uuid;
 
@@ -49,14 +49,71 @@ pub async fn build_production_section(
         }
     }
     let event = newest?;
-    let rendered = render_production(&event, agent_pubkey)?;
+    let mut rendered = render_production(&event, agent_pubkey)?;
+    if let Some(index) = fetch_documents_index(rest, &event).await {
+        rendered.push_str(&index);
+    }
     Some(crate::prompt_framing::semantic_section("production", &rendered))
+}
+
+/// List the production's documents (kind 30181) so the agent knows what it
+/// can fetch with the CLI. Bodies are never inlined: the bible alone can be
+/// tens of thousands of chars.
+async fn fetch_documents_index(rest: &RestClient, production: &Event) -> Option<String> {
+    let slug = production
+        .tags
+        .iter()
+        .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("d"))
+        .and_then(|t| t.as_slice().get(1).cloned())?;
+    let filter = nostr::Filter::new()
+        .kind(nostr::Kind::Custom(KIND_PRODUCTION_DOCUMENT as u16))
+        .author(production.pubkey)
+        .limit(100);
+    let value = rest.query(&[filter]).await.ok()?;
+    let prefix = format!("{slug}/doc/");
+    let mut docs: Vec<(String, String, usize)> = Vec::new();
+    for ev_json in value.as_array()? {
+        let Ok(event) = serde_json::from_value::<Event>(ev_json.clone()) else {
+            continue;
+        };
+        let Some(d) = event
+            .tags
+            .iter()
+            .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("d"))
+            .and_then(|t| t.as_slice().get(1).cloned())
+        else {
+            continue;
+        };
+        let Some(id) = d.strip_prefix(&prefix) else { continue };
+        let body: serde_json::Value = serde_json::from_str(&event.content).unwrap_or_default();
+        if body.get("deleted").and_then(|v| v.as_bool()) == Some(true) {
+            continue;
+        }
+        let title = body.get("title").and_then(|v| v.as_str()).unwrap_or(id).to_string();
+        let len = body.get("body").and_then(|v| v.as_str()).map(|b| b.chars().count()).unwrap_or(0);
+        docs.push((id.to_string(), title, len));
+    }
+    if docs.is_empty() {
+        return None;
+    }
+    docs.sort();
+    let mut out = String::from("\n## Production documents\n");
+    out.push_str(&format!(
+        "Read one with `buzz productions docs get --slug {slug} <id>` (episodes: `buzz productions episodes list --slug {slug}`, characters: `buzz productions characters list --slug {slug}`).\n"
+    ));
+    for (id, title, len) in docs {
+        out.push_str(&format!("- {id} — {title} ({len} chars)\n"));
+    }
+    Some(out)
 }
 
 /// Render the production body and this agent's per-production instructions
 /// as plain text for the prompt. Returns `None` when there is nothing useful.
 pub fn render_production(event: &Event, agent_pubkey: &PublicKey) -> Option<String> {
     let body: serde_json::Value = serde_json::from_str(&event.content).ok()?;
+    if body.get("deleted").and_then(|v| v.as_bool()) == Some(true) {
+        return None;
+    }
     let mut out = String::new();
     let field = |key: &str| body.get(key).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty());
     let slug = event

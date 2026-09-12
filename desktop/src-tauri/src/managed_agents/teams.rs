@@ -31,12 +31,24 @@ struct BuiltInTeam {
     persona_ids: &'static [&'static str],
 }
 
-const BUILT_IN_TEAMS: &[BuiltInTeam] = &[BuiltInTeam {
-    id: "builtin-team:welcome",
-    name: "Welcome Team",
-    description: Some("A friendly starter trio ready to help you plan, create, and ship."),
-    persona_ids: &["builtin:fizz", "builtin:honey", "builtin:bumble"],
-}];
+const BUILT_IN_TEAMS: &[BuiltInTeam] = &[
+    BuiltInTeam {
+        id: "builtin-team:welcome",
+        name: "Welcome Team",
+        description: Some("A friendly starter trio ready to help you plan, create, and ship."),
+        persona_ids: &["builtin:fizz", "builtin:honey", "builtin:bumble"],
+    },
+    // keva: the pre-production crew. Apply it to a production and every
+    // channel gets a producer, a treatment writer and a bible keeper.
+    BuiltInTeam {
+        id: "builtin-team:kiara-studio",
+        name: "Kiara Studio",
+        description: Some(
+            "Producer, Argumento writer and Bíblia keeper: create the production, interview for character sheets, judge images and keep the story consistent.",
+        ),
+        persona_ids: &["builtin:kiara-producer", "builtin:kiara-argumento", "builtin:kiara-biblia"],
+    },
+];
 
 // Built-in teams that have been retired. A stored copy that still exactly
 // matches its seed is purged on load (the user never touched it); customized

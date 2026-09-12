@@ -61,3 +61,35 @@ When a harness creates a new session for a channel, it queries `kind:30180` with
 ## Non-Goals
 
 Episodes, scenes, shots and assets are not in this NIP. Per-production agent memory is reserved (the harness ignores unknown fields).
+
+
+## Production entities (kinds 30181–30183)
+
+Long-form material does not live in the production event. It is split into
+addressable, owner-authored entities keyed by `d = <slug>/<prefix>/<id>`
+(`id` in `[a-z0-9-_]`, up to 64 chars). The relay keeps the newest event per
+`d`; `version` in the content is the human-visible counter. Publishing
+`{"deleted": true}` tombstones an entity.
+
+| kind  | prefix | content (JSON) |
+|-------|--------|----------------|
+| 30181 | `doc`  | `{title, format: "markdown", body, version}` — bible, treatment (argumento), editing diary |
+| 30182 | `ep`   | `{number, title, block, blockTitle, year, duration, aspect, storyboardPrompt, shots: [{n, start, end, scene, framing, action, dialogue, sound, cast, storyboardPrompt, videoPrompt, frames: [url], clip, state, notes}]}` — `state` ∈ `cartela | gerado | revisao | aprovado` |
+| 30183 | `char` | `{name, kicker, summary, sections: {corpo_rosto, figurino, voz, modelos, …}, images: [{url, caption, group}], voices: [{phase, engine, voice, targetF0, direction, where}]}` |
+
+Media URLs point at the relay's Blossom store (`buzz upload file`).
+
+### Agent contract
+
+The harness injects the production event (name, format, `context.description`
+and any legacy context keys, this agent's instructions) plus an **index** of the
+production's documents into every new session in a production channel. Bodies
+are never inlined; agents fetch them:
+
+```
+buzz productions docs list --slug jony
+buzz productions docs get --slug jony biblia
+buzz productions episodes get --slug jony ep04
+buzz productions characters get --slug jony maya
+buzz productions episodes set --slug jony ep04 --content-file ep04.json   # or --content -
+```

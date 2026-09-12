@@ -327,6 +327,17 @@ pub const KIND_TEAM_CATALOG: u32 = 30178;
 /// `docs/nips/NIP-KP.md`.
 pub const KIND_PRODUCTION: u32 = 30180;
 
+/// NIP-KP (keva): Production document (bible, treatment, editing diary…).
+/// Parameterized replaceable, owner-authored; `d` = `<slug>/doc/<id>`.
+/// Content is JSON `{title, format:"markdown", body, version}`.
+pub const KIND_PRODUCTION_DOCUMENT: u32 = 30181;
+/// NIP-KP (keva): Production episode with its shot list. `d` = `<slug>/ep/<id>`.
+/// Content is JSON `{number, title, block, duration, aspect, shots:[…]}`.
+pub const KIND_PRODUCTION_EPISODE: u32 = 30182;
+/// NIP-KP (keva): Production character sheet. `d` = `<slug>/char/<id>`.
+/// Content is JSON `{name, summary, sections:{…}, images:[…], voices:[…]}`.
+pub const KIND_PRODUCTION_CHARACTER: u32 = 30183;
+
 // NIP-56 reporting
 /// NIP-56: Report an event, pubkey, or blob to relay moderators (kind:1984).
 ///
@@ -668,6 +679,9 @@ pub const ALL_KINDS: &[u32] = &[
     KIND_MANAGED_AGENT,
     KIND_TEAM_CATALOG,
     KIND_PRODUCTION,
+    KIND_PRODUCTION_DOCUMENT,
+    KIND_PRODUCTION_EPISODE,
+    KIND_PRODUCTION_CHARACTER,
     KIND_PRIVATE_MANAGED_AGENT,
     KIND_REPORT,
     KIND_PRODUCT_FEEDBACK,

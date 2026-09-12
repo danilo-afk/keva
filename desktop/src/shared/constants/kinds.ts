@@ -59,6 +59,9 @@ export const KIND_PERSONA = 30175;
 export const KIND_TEAM = 30176;
 // keva NIP-KP: production (film/series project) — addressable, d = slug.
 export const KIND_PRODUCTION = 30180;
+export const KIND_PRODUCTION_DOCUMENT = 30181;
+export const KIND_PRODUCTION_EPISODE = 30182;
+export const KIND_PRODUCTION_CHARACTER = 30183;
 export const KIND_MANAGED_AGENT = 30177;
 // Team catalog projection: a self-contained snapshot of a team plus every
 // member's safe definition, so a recipient can rebuild it without reading the

@@ -1934,6 +1934,55 @@ pub enum ProductionsCmd {
         #[arg(long, default_value_t = false)]
         replace: bool,
     },
+    /// Production documents (bible, treatment, diary…) — kind 30181
+    #[command(subcommand)]
+    Docs(ProductionEntityCmd),
+    /// Production episodes with their shot lists — kind 30182
+    #[command(subcommand)]
+    Episodes(ProductionEntityCmd),
+    /// Production character sheets — kind 30183
+    #[command(subcommand)]
+    Characters(ProductionEntityCmd),
+}
+
+/// Shared verbs for production entities (documents, episodes, characters).
+#[derive(Subcommand)]
+pub enum ProductionEntityCmd {
+    /// List entities of a production (JSON)
+    List {
+        /// Production slug
+        #[arg(long)]
+        slug: String,
+    },
+    /// Show one entity (JSON)
+    Get {
+        /// Production slug
+        #[arg(long)]
+        slug: String,
+        /// Entity id (e.g. "biblia", "ep04", "jony")
+        id: String,
+    },
+    /// Create or replace one entity. Content is a JSON object.
+    Set {
+        /// Production slug
+        #[arg(long)]
+        slug: String,
+        /// Entity id (lowercase, [a-z0-9-_])
+        id: String,
+        /// JSON content inline (use '-' for stdin)
+        #[arg(long, conflicts_with = "content_file")]
+        content: Option<String>,
+        /// JSON content from file
+        #[arg(long)]
+        content_file: Option<String>,
+    },
+    /// Remove one entity (publishes an empty tombstone `{"deleted":true}`)
+    Delete {
+        /// Production slug
+        #[arg(long)]
+        slug: String,
+        id: String,
+    },
 }
 
 /// Subcommands for `buzz mem`.

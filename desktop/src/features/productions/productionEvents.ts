@@ -14,27 +14,19 @@ export const PRODUCTION_FORMATS = [
 export const PRODUCTION_ASPECTS = ["9:16", "16:9", "1:1", "4:5"] as const;
 export const PRODUCTION_STATUSES = ["draft", "active", "archived"] as const;
 
-/** Bible sections rendered as a document in the UI and as `<production>` in the harness. */
+/** Context keys. `description` is the one field edited in the UI and always
+ * injected into agents; the others are legacy (CLI/imports) and still rendered. */
 export const PRODUCTION_CONTEXT_FIELDS = [
+  { key: "description", label: "Description", multiline: true, list: false },
   { key: "premise", label: "Premise", multiline: true, list: false },
   { key: "bible", label: "Story bible", multiline: true, list: false },
-  {
-    key: "characters",
-    label: "Characters (one per line)",
-    multiline: true,
-    list: true,
-  },
-  {
-    key: "locations",
-    label: "Locations (one per line)",
-    multiline: true,
-    list: true,
-  },
+  { key: "characters", label: "Characters", multiline: true, list: true },
+  { key: "locations", label: "Locations", multiline: true, list: true },
   { key: "visual_style", label: "Visual style", multiline: true, list: false },
   { key: "camera_rules", label: "Camera rules", multiline: true, list: false },
   {
     key: "continuity_rules",
-    label: "Continuity rules (one per line)",
+    label: "Continuity rules",
     multiline: true,
     list: true,
   },
@@ -99,6 +91,7 @@ export function parseProductionEvent(event: RelayEvent): Production | null {
   } catch {
     body = {};
   }
+  if (body.deleted === true) return null;
   const str = (key: string, fallback = "") =>
     typeof body[key] === "string" ? (body[key] as string) : fallback;
   const rawContext =
@@ -161,6 +154,8 @@ export type ProductionInput = {
   context: ProductionContext;
   channelIds: string[];
   agents: ProductionAgent[];
+  /** Tombstone: the relay keeps only the newest event, so deletion is a flag. */
+  deleted?: boolean;
 };
 
 export function contextToText(value: string | string[] | undefined): string {
@@ -203,6 +198,7 @@ export function buildProductionTemplate(input: ProductionInput) {
     aspect: input.aspect,
     status: input.status,
     context,
+    ...(input.deleted ? { deleted: true } : {}),
   });
   const tags: string[][] = [["d", input.slug]];
   for (const channelId of new Set(input.channelIds))
@@ -231,6 +227,15 @@ export async function publishProduction(
     "Failed to save the production.",
   );
   return event;
+}
+
+/** The short text shown in the Overview and injected into every agent session. */
+export function productionDescription(
+  production: Pick<Production, "context">,
+): string {
+  return contextToText(
+    production.context.description ?? production.context.premise,
+  );
 }
 
 export function productionToInput(production: Production): ProductionInput {
