@@ -157,7 +157,7 @@ export function LandingBees() {
             width: bee.size,
             color: bee.color,
             transform: `rotate(${bee.rotate}deg)`,
-            opacity: 0.9,
+            opacity: 0.35,
           }}
         >
           <FlappingBee className="w-full" />

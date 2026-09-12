@@ -314,7 +314,7 @@ export function MachineOnboardingFlow({
               <img
                 alt="Kiara"
                 className="w-full max-w-[420px]"
-                src="/kiara/wordmark-light.png"
+                src="/kiara/wordmark.png"
               />
               <p className="mt-2 max-w-[560px] text-center text-2xl font-normal leading-none text-foreground">
                 Your people, your agents, your projects —<br />

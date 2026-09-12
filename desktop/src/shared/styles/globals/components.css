@@ -286,27 +286,22 @@
     /* Dot grid over the chartreuse→light-blue gradient (dots layer first so
        they sit on top). The welcome page overrides this with dots over a flat
        chartreuse fill below. */
+    /* keva: dark Kiara shell — dots over a near-black gradient. */
     background-image:
-      radial-gradient(circle, rgb(0 0 0 / 0.08) 1px, transparent 1px),
-      linear-gradient(
-        to bottom,
-        var(--buzz-welcome-chartreuse),
-        var(--buzz-onboarding-shell-bottom)
-      );
+      radial-gradient(circle, rgb(255 255 255 / 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, #0b0b0c, var(--buzz-onboarding-shell-bottom));
     background-size:
       24px 24px,
       auto;
   }
 
   .buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-welcome {
-    background-color: var(--buzz-welcome-chartreuse);
-    /* Landing is a flat chartreuse field, so the docked-footer scrim must match
-       it (not the gradient's light-blue bottom) to stay invisible. */
-    --buzz-onboarding-shell-bottom: var(--buzz-welcome-chartreuse);
+    background-color: #0b0b0c;
+    --buzz-onboarding-shell-bottom: #0b0b0c;
     /* Subtle dot grid: 2px dots spaced on a 24px lattice. */
     background-image: radial-gradient(
       circle,
-      rgb(0 0 0 / 0.08) 1px,
+      rgb(255 255 255 / 0.06) 1px,
       transparent 1px
     );
     background-size: 24px 24px;
@@ -314,28 +309,30 @@
 
   .buzz-onboarding-neutral-theme {
     /* Landing "chartreuse" — the welcome background; reused for the CTA label. */
-    --buzz-welcome-chartreuse: #d7d72e;
+    color-scheme: dark;
+    /* keva: Kiara yellow accent on a dark field (was Buzz chartreuse). */
+    --buzz-welcome-chartreuse: #ffe01b;
     /* Bottom stop of the onboarding shell gradient; also the docked-footer
        scrim color so content scrolling under the CTA fades into the page. */
-    --buzz-onboarding-shell-bottom: #d7e7f6;
+    --buzz-onboarding-shell-bottom: #131316;
     /* Label color for the primary onboarding CTA (light blue on the dark pill). */
-    --buzz-onboarding-cta-label: #d7e6f0;
+    --buzz-onboarding-cta-label: #111111;
     /* Olive ink for the backup step's private key and its "never share" caption,
        reading against the fuzzy-white key frame. */
     --buzz-onboarding-backup-ink: #717106;
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 9%;
+    --background: 240 3% 4%;
+    --foreground: 0 0% 96%;
+    --primary: 52 100% 55%;
+    --primary-foreground: 0 0% 7%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 66%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 96%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 52 100% 55%;
     --buzz-onboarding-emoji-picker-background: 245, 245, 245;
     --buzz-onboarding-emoji-picker-color: 23, 23, 23;
     --buzz-onboarding-emoji-picker-input: 255, 255, 255;
