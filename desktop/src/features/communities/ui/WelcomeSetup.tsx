@@ -104,10 +104,6 @@ export function WelcomeSetup({
     [communityOnboarding, page],
   );
 
-  const beginHostedCommunity = React.useCallback(
-    () => setIsHostedSignInOpen(true),
-    [],
-  );
 
   const transitionDirection =
     transitionMode === "backward" ? "backward" : "forward";
@@ -153,8 +149,8 @@ export function WelcomeSetup({
                   Join or create a community
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-foreground/80">
-                  Join with an invite, create your own community, or reconnect
-                  one you already have.
+                  Join with an invite, or connect to the Kiara relay with your
+                  identity.
                 </p>
               </div>
               <div className="flex w-full flex-1 translate-y-16 flex-col items-center justify-center gap-20 py-8">
@@ -178,10 +174,10 @@ export function WelcomeSetup({
                 >
                   <button
                     data-testid="community-choice-create"
-                    onClick={beginHostedCommunity}
+                    onClick={() => showPage("member")}
                     type="button"
                   >
-                    Create a community
+                    Connect to the Kiara relay
                   </button>
                 </Card>
                 <Card
@@ -222,7 +218,7 @@ export function WelcomeSetup({
                 >
                   <button
                     data-testid="existing-choice-owner"
-                    onClick={beginHostedCommunity}
+                    onClick={() => showPage("member")}
                     type="button"
                   >
                     I own the community

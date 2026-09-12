@@ -5,6 +5,7 @@ import type { AddCommunityPrefillRequest } from "@/features/communities/addCommu
 import { HostedCommunityCreateFlow } from "@/features/communities/ui/HostedCommunityCreateFlow";
 import { useCommunityOnboarding } from "@/features/onboarding/communityOnboarding";
 import { InviteRedeemForm } from "@/features/onboarding/ui/InviteRedeemForm";
+import { getDefaultRelayUrl } from "@/shared/api/tauri";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,20 @@ export function AddCommunityDialog({
   const communityOnboarding = useCommunityOnboarding();
   const [mode, setMode] = React.useState<AddCommunityMode>("choose");
   const [joinError, setJoinError] = React.useState<string | null>(null);
+  // keva: the fork has no hosted (Builderlab) communities; "create" connects
+  // to the build's default Kiara relay instead, pre-filled and editable.
+  const [defaultRelayUrl, setDefaultRelayUrl] = React.useState("");
+  React.useEffect(() => {
+    let cancelled = false;
+    getDefaultRelayUrl()
+      .then((url) => {
+        if (!cancelled && typeof url === "string") setDefaultRelayUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const appliedPrefillId = React.useRef<string | null>(null);
 
   React.useEffect(() => {
@@ -135,7 +150,7 @@ export function AddCommunityDialog({
               <button
                 className={OPTION_CLASS}
                 data-testid="add-community-create"
-                onClick={() => setMode("create")}
+                onClick={() => setMode("join")}
                 type="button"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -143,10 +158,10 @@ export function AddCommunityDialog({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-foreground">
-                    Create a new community
+                    Connect to the Kiara relay
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    Claim a Kiara address for your team.
+                    Use the Kiara relay with your identity.
                   </span>
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
@@ -175,9 +190,9 @@ export function AddCommunityDialog({
           ) : mode === "join" ? (
             <InviteRedeemForm
               error={joinError}
-              initialValue={prefill?.relayUrl}
+              initialValue={prefill?.relayUrl ?? defaultRelayUrl}
               isRedeeming={false}
-              key={prefill?.requestId ?? "manual-add-community"}
+              key={`${prefill?.requestId ?? "manual-add-community"}:${defaultRelayUrl}`}
               onCancel={() => {
                 setJoinError(null);
                 setMode("choose");
