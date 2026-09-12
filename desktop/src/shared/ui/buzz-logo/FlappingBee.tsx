@@ -6,7 +6,7 @@ export function FlappingBee({ className }: { className?: string }) {
       aria-hidden="true"
       className={["object-contain", className].filter(Boolean).join(" ")}
       draggable={false}
-      src="/kiara/mark.png"
+      src="/kiara/mark-light.png"
     />
   );
 }

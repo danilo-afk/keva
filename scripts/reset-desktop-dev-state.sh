@@ -44,7 +44,7 @@ case "$(uname -s)" in
     # SecretStore keeps all dev identity and agent keys in this dev-only item.
     # Delete every matching item in case an older build used multiple accounts.
     if command -v security >/dev/null 2>&1; then
-      while security delete-generic-password -s buzz-desktop-dev >/dev/null 2>&1; do :; done
+      while security delete-generic-password -s "ai-kiara.com (dev)" >/dev/null 2>&1; do :; done
       while security delete-generic-password -s sprout-desktop-dev >/dev/null 2>&1; do :; done
     fi
     ;;

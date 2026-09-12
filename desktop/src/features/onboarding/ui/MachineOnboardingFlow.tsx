@@ -17,6 +17,7 @@ import {
 } from "@/shared/ui/dialog";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 import { BackupStep } from "./BackupStep";
+import { LandingBees } from "./LandingBees";
 import { DefaultConfigStep } from "./DefaultConfigStep";
 import { DownloadKeyStep } from "./DownloadKeyStep";
 import {
@@ -292,7 +293,7 @@ export function MachineOnboardingFlow({
       data-testid="machine-onboarding-gate"
     >
       <StartupWindowDragRegion />
-      {null}
+      {page === "identity" ? <LandingBees /> : null}
       {page !== "identity" && !isSecuritySubview ? (
         <OnboardingChrome
           current={page === "config" ? 4 : page === "setup" ? 3 : 2}

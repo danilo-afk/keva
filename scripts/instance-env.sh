@@ -49,7 +49,7 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
         # identifier is kept so concurrent instances don't collide on
         # tauri-plugin-single-instance or the app data directory.
         if [[ "${BUZZ_SHARE_IDENTITY:-0}" == "1" ]]; then
-            KEYRING_SERVICE="buzz-desktop-dev"
+            KEYRING_SERVICE="ai-kiara.com (dev)"
             KEYRING_BLOB=""
             case "$(uname -s)" in
                 Darwin)

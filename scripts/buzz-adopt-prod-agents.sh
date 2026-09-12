@@ -75,7 +75,7 @@ set -euo pipefail
 SUPPORT="$HOME/Library/Application Support"
 PROD_DIR="$SUPPORT/xyz.block.buzz.app"
 DEV_DIR="$SUPPORT/xyz.block.buzz.app.dev"
-KEYCHAIN_SVC="${BUZZ_KEYCHAIN_SVC:-buzz-desktop}"
+KEYCHAIN_SVC="${BUZZ_KEYCHAIN_SVC:-ai-kiara.com}"
 KEYCHAIN_ACCT="${BUZZ_KEYCHAIN_ACCT:-secrets}"
 
 DRY_RUN=0

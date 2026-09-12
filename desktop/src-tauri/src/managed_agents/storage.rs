@@ -469,7 +469,7 @@ fn persist_agent_keys_with(store: &impl KeyStore, records: &mut [ManagedAgentRec
 /// after the service-name change.
 #[cfg(debug_assertions)]
 pub fn migrate_agent_keys_to_dev_service(app: &tauri::AppHandle) {
-    if !cfg!(feature = "system-keyring") || keyring_service() != "buzz-desktop-dev" {
+    if !cfg!(feature = "system-keyring") || keyring_service() != "ai-kiara.com (dev)" {
         return;
     }
 
@@ -492,7 +492,7 @@ pub fn migrate_agent_keys_to_dev_service(app: &tauri::AppHandle) {
     // A fresh non-singleton store for the prod service — its own empty
     // cache so reads go to the OS keyring without polluting the dev
     // singleton's cache.
-    let prod_store = crate::secret_store::SecretStore::keyring("buzz-desktop");
+    let prod_store = crate::secret_store::SecretStore::keyring("ai-kiara.com");
     let dev_store = crate::secret_store::SecretStore::shared(keyring_service());
     copy_agent_keys_between_stores(&pubkeys, &prod_store, dev_store);
 }
