@@ -176,10 +176,9 @@ function isLocalRelayHost(hostname: string): boolean {
 export function shouldAutoConnectDefaultRelay(relayUrl: string): boolean {
   try {
     const parsed = new URL(relayUrl);
-    return (
-      (parsed.protocol === "ws:" || parsed.protocol === "wss:") &&
-      !isLocalRelayHost(parsed.hostname)
-    );
+    // keva: a local relay (dev) is a valid default too — the Kiara desktop
+    // always auto-connects to the build's relay, wherever it runs.
+    return parsed.protocol === "ws:" || parsed.protocol === "wss:";
   } catch {
     return false;
   }

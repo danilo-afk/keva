@@ -82,9 +82,14 @@ pub fn get_default_relay_url() -> String {
     relay::relay_ws_url()
 }
 
+/// keva: Kiara ships one relay, so the "join or connect to a community" step
+/// is skipped and the app connects to the build's default relay. Upstream
+/// gated this behind `BUZZ_DESKTOP_BUILD_AUTO_CONNECT_DEFAULT_RELAY`; the fork
+/// inverts it — set `BUZZ_DESKTOP_BUILD_NO_AUTO_CONNECT_DEFAULT_RELAY` at build
+/// time to get the community picker back.
 #[tauri::command]
 pub fn auto_connect_default_relay_enabled() -> bool {
-    option_env!("BUZZ_DESKTOP_BUILD_AUTO_CONNECT_DEFAULT_RELAY").is_some()
+    option_env!("BUZZ_DESKTOP_BUILD_NO_AUTO_CONNECT_DEFAULT_RELAY").is_none()
 }
 
 #[cfg(test)]
@@ -96,9 +101,10 @@ mod auto_connect_default_relay_tests {
     fn compiled_flag_matches_expected() {
         let expected = std::env::var("BUZZ_TEST_EXPECTED_AUTO_CONNECT_DEFAULT_RELAY")
             .expect("compiled-flag test requires an expected value");
+        // keva: the default is inverted (on unless the NO_ flag is set).
         assert_eq!(
             auto_connect_default_relay_enabled(),
-            expected == "true" || expected == "1"
+            !(expected == "false" || expected == "0")
         );
     }
 }
