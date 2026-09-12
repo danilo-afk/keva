@@ -286,10 +286,11 @@
     /* Dot grid over the chartreuse→light-blue gradient (dots layer first so
        they sit on top). The welcome page overrides this with dots over a flat
        chartreuse fill below. */
-    /* keva: dark Kiara shell — dots over a near-black gradient. */
+    /* keva: Paper shell for the steps (Kiara light surface); the landing
+       alone is dark (see .buzz-onboarding-welcome below). */
     background-image:
-      radial-gradient(circle, rgb(255 255 255 / 0.06) 1px, transparent 1px),
-      linear-gradient(to bottom, #141414, var(--buzz-onboarding-shell-bottom));
+      radial-gradient(circle, rgb(0 0 0 / 0.07) 1px, transparent 1px),
+      linear-gradient(to bottom, #f2f2ed, var(--buzz-onboarding-shell-bottom));
     background-size:
       24px 24px,
       auto;
@@ -298,6 +299,13 @@
   .buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-welcome {
     background-color: #141414;
     --buzz-onboarding-shell-bottom: #141414;
+    color-scheme: dark;
+    --background: 0 0% 8%;
+    --foreground: 60 16% 95%;
+    --muted-foreground: 60 3% 53%;
+    --primary: 45 88% 57%;
+    --primary-foreground: 0 0% 7%;
+    --buzz-onboarding-cta-label: #141414;
     /* Subtle dot grid: 2px dots spaced on a 24px lattice. */
     background-image: radial-gradient(
       circle,
@@ -309,30 +317,29 @@
 
   .buzz-onboarding-neutral-theme {
     /* Landing "chartreuse" — the welcome background; reused for the CTA label. */
-    color-scheme: dark;
-    /* keva: Kiara yellow accent on a dark field (was Buzz chartreuse). */
+    /* keva: Gold accent (was Buzz chartreuse). */
     --buzz-welcome-chartreuse: #f2c230;
     /* Bottom stop of the onboarding shell gradient; also the docked-footer
        scrim color so content scrolling under the CTA fades into the page. */
-    --buzz-onboarding-shell-bottom: #0e0e0f;
+    --buzz-onboarding-shell-bottom: #e4e4df; /* Cloud */
     /* Label color for the primary onboarding CTA (light blue on the dark pill). */
-    --buzz-onboarding-cta-label: #111111;
+    --buzz-onboarding-cta-label: #f2c230; /* Gold label on the ink pill */
     /* Olive ink for the backup step's private key and its "never share" caption,
        reading against the fuzzy-white key frame. */
-    --buzz-onboarding-backup-ink: #717106;
-    --background: 0 0% 8%;
-    --foreground: 60 16% 95%;
-    --primary: 45 88% 57%;
-    --primary-foreground: 0 0% 7%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 12%;
+    --buzz-onboarding-backup-ink: #8a6d00; /* Gold Deep */
+    --background: 60 16% 95%;
+    --foreground: 0 0% 8%;
+    --primary: 0 0% 8%;
+    --primary-foreground: 60 16% 95%;
+    --secondary: 60 6% 89%;
+    --secondary-foreground: 0 0% 8%;
+    --muted: 60 6% 89%;
     --muted-foreground: 60 3% 53%; /* Neutral #8A8A84 */
-    --accent: 0 0% 14%;
-    --accent-foreground: 0 0% 96%;
-    --border: 0 0% 22%;
-    --input: 0 0% 22%;
-    --ring: 45 88% 57%;
+    --accent: 60 6% 89%;
+    --accent-foreground: 0 0% 8%;
+    --border: 60 6% 84%;
+    --input: 60 6% 84%;
+    --ring: 0 0% 8%;
     --buzz-onboarding-emoji-picker-background: 245, 245, 245;
     --buzz-onboarding-emoji-picker-color: 23, 23, 23;
     --buzz-onboarding-emoji-picker-input: 255, 255, 255;
@@ -817,4 +824,14 @@
   border-radius: 0;
   box-shadow: none;
   margin: 0;
+}
+
+/* keva: the Kiara mark is gold on dark surfaces and ink on the light
+   onboarding steps ("Gold no fundo escuro, ink no fundo claro"). */
+.buzz-onboarding-neutral-theme:not(.buzz-onboarding-welcome) .buzz-mark--gold,
+.buzz-mark--ink {
+  display: none;
+}
+.buzz-onboarding-neutral-theme:not(.buzz-onboarding-welcome) .buzz-mark--ink {
+  display: block;
 }

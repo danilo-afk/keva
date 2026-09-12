@@ -1,16 +1,14 @@
 /**
  * Kiara mark (keva fork). Keeps the `BuzzMark` export so every call site stays
- * untouched; the gold variant reads on both the dark app chrome and the light
- * onboarding pages.
+ * untouched. Two renditions ship and CSS picks one: gold on dark surfaces,
+ * ink on the light onboarding steps.
  */
 export function BuzzMark({ className }: { className?: string }) {
+  const base = ["buzz-mark object-contain", className].filter(Boolean).join(" ");
   return (
-    <img
-      alt=""
-      aria-hidden="true"
-      className={["buzz-mark object-contain", className].filter(Boolean).join(" ")}
-      draggable={false}
-      src="/kiara/mark.png"
-    />
+    <>
+      <img alt="" aria-hidden="true" className={`${base} buzz-mark--gold`} draggable={false} src="/kiara/mark.png" />
+      <img alt="" aria-hidden="true" className={`${base} buzz-mark--ink`} draggable={false} src="/kiara/mark-light.png" />
+    </>
   );
 }

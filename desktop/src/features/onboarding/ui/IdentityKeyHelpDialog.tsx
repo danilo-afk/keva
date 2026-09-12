@@ -82,17 +82,17 @@ export function IdentityKeyHelpDialog() {
           >
             <div>
               <p>
-                Buzz uses an identity key instead of a traditional account. It’s
-                created on your device and represents you whenever you use Buzz.
+                Kiara uses an identity key instead of a traditional account. It’s
+                created on your device and represents you whenever you use Kiara.
               </p>
               <p>
-                Your identity belongs to you, not Buzz. There’s no password to
-                reset, and Buzz can’t recover your key if you lose it. Keep a
+                Your identity belongs to you, not Kiara. There’s no password to
+                reset, and Kiara can’t recover your key if you lose it. Keep a
                 backup somewhere safe and never share it. Anyone with your key
                 can act as you.
               </p>
               <p>
-                If you’re new to Buzz, create a new identity key. If you already
+                If you’re new to Kiara, create a new identity key. If you already
                 have a Nostr identity, use your existing key.
               </p>
             </div>
