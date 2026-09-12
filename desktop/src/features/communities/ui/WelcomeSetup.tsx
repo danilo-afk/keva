@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { HostedCommunityOnboarding } from "@/features/communities/ui/HostedCommunityOnboarding";
 import { useCommunityOnboarding } from "@/features/onboarding/communityOnboarding";
 import { InviteRedeemForm } from "@/features/onboarding/ui/InviteRedeemForm";
+import { getDefaultRelayUrl } from "@/shared/api/tauri";
 import { OnboardingChrome } from "@/features/onboarding/ui/OnboardingChrome";
 import { OnboardingFooterProvider } from "@/features/onboarding/ui/OnboardingFooter";
 import {
@@ -43,6 +44,20 @@ export function WelcomeSetup({
   // behind the modal never changes out from under the user.
   const [isHostedSignInOpen, setIsHostedSignInOpen] = React.useState(false);
   const [copiedNpub, setCopiedNpub] = React.useState(false);
+  // keva: pre-fill the community URL with the build's default relay (dev:
+  // ws://localhost:3000) so a local setup is one click; the field stays editable.
+  const [defaultRelayUrl, setDefaultRelayUrl] = React.useState("");
+  React.useEffect(() => {
+    let cancelled = false;
+    getDefaultRelayUrl()
+      .then((url) => {
+        if (!cancelled && typeof url === "string") setDefaultRelayUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const communityOnboarding = useCommunityOnboarding();
   const identityQuery = useIdentityQuery();
   const systemColorScheme = useSystemColorScheme();
@@ -256,6 +271,8 @@ export function WelcomeSetup({
               </div>
               <div className="flex w-full flex-1 flex-col items-center justify-center gap-16">
                 <InviteRedeemForm
+                  key={defaultRelayUrl}
+                  initialValue={page === "member" ? defaultRelayUrl : ""}
                   error={null}
                   isRedeeming={false}
                   onCancel={() =>
