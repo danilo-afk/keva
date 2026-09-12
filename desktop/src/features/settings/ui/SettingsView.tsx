@@ -67,7 +67,9 @@ const settingsNavGroups: Array<{
   },
   {
     label: "Communities",
-    sections: ["hosted-communities", "community-members"],
+    // keva: the Block-hosted communities panel (Builderlab) is not part of the
+    // Kiara product; invites stay.
+    sections: ["community-members"],
   },
   {
     label: "App",

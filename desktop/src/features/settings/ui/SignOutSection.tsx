@@ -14,7 +14,6 @@ import {
 } from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
-import { Input } from "@/shared/ui/input";
 import { Spinner } from "@/shared/ui/spinner";
 import { SettingsOptionGroup, SettingsOptionRow } from "./SettingsOptionGroup";
 
@@ -53,12 +52,9 @@ export function SignOutSection() {
   // dialog closes.
   const fetchCancelledRef = React.useRef(false);
 
-  // Typed-confirmation gate.
-  const [confirmText, setConfirmText] = React.useState("");
-  const isPhraseConfirmed =
-    confirmText.trim().toLowerCase() === SIGNOUT_CONFIRM_PHRASE;
 
-  const canDelete = hasConfirmedBackup && isPhraseConfirmed && !isPending;
+  // keva: one gate — the user confirms they can sign back in with their key.
+  const canDelete = hasConfirmedBackup && !isPending;
 
   function resetDialogState() {
     fetchCancelledRef.current = true;
@@ -66,7 +62,6 @@ export function SignOutSection() {
     setNsecError(null);
     setIsNsecLoading(false);
     setHasConfirmedBackup(false);
-    setConfirmText("");
   }
 
   React.useEffect(() => {
@@ -129,9 +124,8 @@ export function SignOutSection() {
               className="text-sm font-normal text-muted-foreground/70"
               data-settings-subcopy
             >
-              Removes your identity key and all local app data from this device.
-              Before signing out, create and test a password-protected key
-              backup above — this cannot be undone.
+              Removes your identity key and local app data from this device.
+              You can sign back in with your private key; keep it saved.
             </p>
           </div>
           <Button
@@ -144,7 +138,7 @@ export function SignOutSection() {
             {isPending ? (
               <Spinner aria-label="Signing out" className="h-4 w-4 border-2" />
             ) : null}
-            {isPending ? "Signing out…" : "Delete my data"}
+            {isPending ? "Signing out…" : "Sign out"}
           </Button>
         </SettingsOptionRow>
       </SettingsOptionGroup>
@@ -159,17 +153,18 @@ export function SignOutSection() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sign out and wipe all data?</AlertDialogTitle>
+            <AlertDialogTitle>Sign out of this device?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete your identity key, all agent settings, and cached
-              data from this device, then relaunch Kiara into first-run setup.
-              This cannot be undone.
+              Your identity key and local app data (including agents created on
+              this device) are removed and Kiara relaunches to the sign-in
+              screen. Your messages stay on the relay. Sign back in with your
+              private key.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="space-y-3">
             <p className="text-sm font-medium">
-              1. Confirm you can restore your identity
+              Confirm you can sign back in
             </p>
             {isNsecLoading ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
@@ -199,32 +194,11 @@ export function SignOutSection() {
                 }
               />
               <span>
-                I have tested a key backup or saved this private key somewhere
-                safe.
+                I have saved this private key somewhere safe.
               </span>
             </label>
           </div>
 
-          <div className="space-y-2">
-            <label
-              className="text-sm font-medium"
-              htmlFor="signout-confirm-phrase"
-            >
-              2. Type{" "}
-              <span className="font-semibold">"{SIGNOUT_CONFIRM_PHRASE}"</span>{" "}
-              to confirm
-            </label>
-            <Input
-              autoComplete="off"
-              data-testid="signout-confirm-phrase"
-              disabled={isPending}
-              id="signout-confirm-phrase"
-              onChange={(event) => setConfirmText(event.target.value)}
-              placeholder={SIGNOUT_CONFIRM_PHRASE}
-              spellCheck={false}
-              value={confirmText}
-            />
-          </div>
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
@@ -244,7 +218,7 @@ export function SignOutSection() {
                   className="h-4 w-4 border-2"
                 />
               ) : null}
-              {isPending ? "Signing out…" : "Delete my data"}
+              {isPending ? "Signing out…" : "Sign out"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
