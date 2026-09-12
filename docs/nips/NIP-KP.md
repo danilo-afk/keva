@@ -74,10 +74,10 @@ addressable, owner-authored entities keyed by `d = <slug>/<prefix>/<id>`
 | kind  | prefix | content (JSON) |
 |-------|--------|----------------|
 | 30181 | `doc`  | `{title, format: "markdown", body, version}` — bible, treatment (argumento), editing diary |
-| 30182 | `ep`   | `{number, title, block, blockTitle, year, duration, aspect, storyboardPrompt, shots: [{n, start, end, scene, framing, action, dialogue, sound, cast, storyboardPrompt, videoPrompt, frames: [url], clip, state, notes}]}` — `state` ∈ `cartela | gerado | revisao | aprovado` |
+| 30182 | `ep`   | `{number, title, block, blockTitle, year, duration, aspect, storyboardPrompt, shots: [{n, start, end, scene, framing, action, dialogue, sound, cast, storyboardPrompt, videoPrompt, frames: [url], clip, state, notes, evals: {voices, quality, director}}]}` — `state` ∈ `cartela | gerado | revisao | aprovado`; `evals.director = true` is what approves a shot |
 | 30183 | `char` | `{name, kicker, summary, sections: {corpo_rosto, figurino, voz, modelos, …}, images: [{url, caption, group}], voices: [{phase, engine, voice, targetF0, direction, where}]}` |
 
-Media URLs point at the relay's Blossom store (`buzz upload file`).
+Media URLs point at the relay's Blossom store (`buzz upload file`). The store only accepts images without EXIF/ICC and MP4 with H.264 (+AAC), fast-start, no encoder tag: `ffmpeg -i in.mp4 -map 0:v:0 -map '0:a:0?' -c copy -fflags +bitexact -flags +bitexact -movflags +faststart -map_metadata -1 -map_chapters -1 -dn -sn out.mp4` (transcode with libx264/aac when the source is HEVC).
 
 ### Agent contract
 
