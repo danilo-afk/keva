@@ -29,7 +29,7 @@ type WelcomeSetupProps = {
 };
 
 const COMMUNITY_OPTION_CARD_CLASS =
-  "w-full max-w-[320px] items-center px-6 py-4 text-center text-sm font-normal leading-6 text-foreground [--buzz-card-textured-min-height:88px] transition-[filter] duration-150 ease-out hover:brightness-[0.98] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-foreground/35";
+  "w-full max-w-[320px] items-center px-6 py-4 text-center text-sm font-normal leading-6 text-foreground [--buzz-card-textured-min-height:88px] transition-[filter] duration-150 ease-out hover:brightness-[0.98] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-foreground/35 rounded-2xl ring-1 ring-foreground/15 hover:ring-[#F2C230] hover:text-[#F2C230] focus-visible:ring-2 focus-visible:ring-[#F2C230] transition-[box-shadow,color] duration-150";
 
 export function WelcomeSetup({
   initialPage = "welcome",
@@ -146,7 +146,7 @@ export function WelcomeSetup({
             >
               <div className="w-full max-w-[760px]">
                 <h1 className="text-title font-normal">
-                  Join or create a community
+                  Join or connect to a community
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-foreground/80">
                   Join with an invite, or connect to the Kiara relay with your
