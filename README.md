@@ -181,6 +181,18 @@ For agents, set `BUZZ_PRIVATE_KEY` and use [`buzz-cli`](crates/buzz-cli) — JSO
 
 ---
 
+## Local dev notes (keva fork)
+
+Things that bit us on a fresh macOS clone, fixed or documented here:
+
+- **`minio/mc` is no longer pullable from Docker Hub.** `docker-compose.yml` now uses `quay.io/minio/mc`.
+- **`localhost` vs `127.0.0.1` were two communities.** The desktop connects to `ws://localhost:3000` but spawns agents on `ws://127.0.0.1:3000`; the relay bound each spelling to its own empty community, so agents "discovered 0 channels" and never answered. `normalize_host` now folds `127.0.0.1` and `[::1]` into `localhost`, and the seed script only seeds `localhost` rows.
+- **`~/.rustup` owned by root** (old rustup installs): Hermit cannot install the pinned toolchain. Run everything with `export RUSTUP_HOME=$HOME/.rustup-hermit` before `. ./bin/activate-hermit`.
+- **Launch the desktop from a clean shell.** If your terminal wraps `claude` (super.engineering, direnv shims, etc.), the Claude harness inherits that wrapper and turns hang. Either launch `just dev` from a plain shell or set `CLAUDE_CODE_EXECUTABLE=/path/to/real/claude` in *Agent defaults → env vars*.
+- **One session per agent is enough locally.** The built-in team defaulted to 10 parallel ACP sessions per agent (40 `claude` processes for three agents on a claude.ai subscription); turns then hang without an error. New agents now default to `DEFAULT_AGENT_PARALLELISM = 2`; lower existing agents in *Edit agent → Advanced*.
+- **Agents answer `@mentions` only**, and each reply is a full Claude Code turn that publishes through the `buzz` CLI — expect 25–60 s with Haiku/Sonnet, more with Opus. Pick the model per agent in *Create agent → Customize for this agent*.
+- **Auto-start is off by default.** Agents you stopped (or that died with the app) do not come back on relaunch unless *Auto-start* is on for that agent.
+
 ## Windows prerequisites
 
 The agent shell tool runs commands under bash. On macOS and Linux that's already there; on Windows you need to bring it.

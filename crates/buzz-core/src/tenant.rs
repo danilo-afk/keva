@@ -114,6 +114,13 @@ impl TenantContext {
 ///   since a deployment may legitimately serve different communities on
 ///   different ports of the same name.
 ///
+/// - fold the loopback literals `127.0.0.1` and `[::1]` into `localhost`
+///   (port kept). Local tooling dials the same relay through any of the
+///   three spellings — the desktop app connects to `localhost:3000` while the
+///   agents it spawns dial `127.0.0.1:3000` — and without this rule each
+///   spelling became its own empty community, so agents "discovered 0
+///   channels" and sat idle.
+///
 /// The input is trimmed of surrounding whitespace. An empty result (e.g. the
 /// caller passed `""`) is returned as-is; resolution treats an empty or
 /// unmapped host as a fail-closed rejection, never a default tenant.
@@ -134,7 +141,38 @@ pub fn normalize_host(host: &str) -> String {
     if let Some(stripped) = host.strip_suffix('.') {
         host = stripped.to_string();
     }
+    // Fold loopback literals into `localhost` so local dev never splits into
+    // per-spelling tenants. Only exact literals are folded; anything else
+    // (a real name, another IP) is left untouched.
+    let (name, port) = split_host_port(&host);
+    if name == "127.0.0.1" || name == "[::1]" {
+        host = match port {
+            Some(p) => format!("localhost:{p}"),
+            None => "localhost".to_string(),
+        };
+    }
     host
+}
+
+/// Split `host[:port]` without misreading a bare IPv6 literal. Bracketed
+/// IPv6 (`[::1]:3000`) splits at the bracket; a value with more than one colon
+/// and no brackets is a raw IPv6 literal and has no port.
+fn split_host_port(host: &str) -> (&str, Option<&str>) {
+    if let Some(rest) = host.strip_prefix('[') {
+        if let Some(end) = rest.find(']') {
+            let name = &host[..end + 2];
+            let tail = &host[end + 2..];
+            return match tail.strip_prefix(':') {
+                Some(p) if !p.is_empty() => (name, Some(p)),
+                _ => (name, None),
+            };
+        }
+        return (host, None);
+    }
+    match host.rsplit_once(':') {
+        Some((name, port)) if !name.contains(':') && !port.is_empty() => (name, Some(port)),
+        _ => (host, None),
+    }
 }
 
 /// Extract the authority (host plus an explicit non-default port, if present)
@@ -220,9 +258,24 @@ mod tests {
 
     #[test]
     fn normalize_host_leaves_ipv6_literal_intact() {
-        // IPv6 literals contain colons but no trailing default-port suffix.
-        assert_eq!(normalize_host("[::1]"), "[::1]");
-        assert_eq!(normalize_host("[::1]:443"), "[::1]");
+        // Non-loopback IPv6 literals contain colons but no default-port suffix.
+        assert_eq!(normalize_host("[2001:db8::1]"), "[2001:db8::1]");
+        assert_eq!(normalize_host("[2001:db8::1]:443"), "[2001:db8::1]");
+        assert_eq!(normalize_host("[2001:db8::1]:3000"), "[2001:db8::1]:3000");
+    }
+
+    #[test]
+    fn normalize_host_folds_loopback_into_localhost() {
+        // localhost, 127.0.0.1 and [::1] are one machine and one community.
+        for variant in ["localhost", "127.0.0.1", "[::1]", "LOCALHOST", "127.0.0.1:80"] {
+            assert_eq!(normalize_host(variant), "localhost", "variant {variant:?}");
+        }
+        for variant in ["localhost:3000", "127.0.0.1:3000", "[::1]:3000"] {
+            assert_eq!(normalize_host(variant), "localhost:3000", "variant {variant:?}");
+        }
+        // Other IPs are not loopback and stay as they are.
+        assert_eq!(normalize_host("127.0.0.2:3000"), "127.0.0.2:3000");
+        assert_eq!(normalize_host("10.0.0.1"), "10.0.0.1");
     }
 
     #[test]
@@ -263,7 +316,9 @@ mod tests {
     fn relay_url_authority_preserves_ipv6_brackets() {
         // `host_str()` strips IPv6 brackets and the port; `relay_url_authority`
         // must keep both so the authority matches `communities.host`.
-        assert_eq!(relay_url_authority("ws://[::1]:3000"), "[::1]:3000");
+        assert_eq!(relay_url_authority("ws://[2001:db8::1]:3000"), "[2001:db8::1]:3000");
+        // Loopback IPv6 folds into localhost like every other loopback spelling.
+        assert_eq!(relay_url_authority("ws://[::1]:3000"), "localhost:3000");
     }
 
     #[test]

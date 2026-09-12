@@ -807,7 +807,9 @@ pub struct AgentModelInfo {
 pub const DEFAULT_ACP_COMMAND: &str = "buzz-acp";
 /// ~5 min (320s) — matches the CLI harness default (BUZZ_ACP_IDLE_TIMEOUT).
 pub const DEFAULT_AGENT_TURN_TIMEOUT_SECONDS: u64 = 320;
-pub const DEFAULT_AGENT_PARALLELISM: u32 = 10;
+/// Sessions per agent. Upstream shipped 10; on a claude.ai subscription three
+/// agents then meant 30+ `claude` processes and turns hung without an error.
+pub const DEFAULT_AGENT_PARALLELISM: u32 = 2;
 
 fn default_agent_parallelism() -> u32 {
     DEFAULT_AGENT_PARALLELISM

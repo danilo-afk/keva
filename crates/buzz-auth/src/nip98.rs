@@ -196,6 +196,12 @@ fn normalize_url(raw: &str) -> String {
         Ok(u) => u,
         Err(_) => return raw.to_lowercase(),
     };
+    // Same loopback rule as `buzz_core::tenant::normalize_host`: the desktop
+    // signs `http://localhost:3000/...` while the agents it spawns sign
+    // `http://127.0.0.1:3000/...` for the very same relay. Both must verify.
+    if matches!(parsed.host_str(), Some("127.0.0.1" | "[::1]" | "::1")) {
+        let _ = parsed.set_host(Some("localhost"));
+    }
     let path = parsed.path().trim_end_matches('/').to_string();
     parsed.set_path(&path);
     parsed.to_string()
@@ -205,6 +211,22 @@ fn normalize_url(raw: &str) -> String {
 mod tests {
     use super::*;
     use nostr::{EventBuilder, Keys, Kind, Timestamp};
+
+    #[test]
+    fn normalize_url_folds_loopback_spellings() {
+        assert_eq!(
+            normalize_url("http://127.0.0.1:3000/query"),
+            normalize_url("http://localhost:3000/query")
+        );
+        assert_eq!(
+            normalize_url("http://[::1]:3000/query/"),
+            normalize_url("http://localhost:3000/query")
+        );
+        assert_ne!(
+            normalize_url("http://127.0.0.2:3000/query"),
+            normalize_url("http://localhost:3000/query")
+        );
+    }
 
     const TEST_URL: &str = "https://relay.example.com/api/tokens";
     const TEST_METHOD: &str = "POST";
@@ -480,32 +502,28 @@ mod tests {
     }
 
     #[test]
-    fn loopback_aliases_are_distinct_hosts() {
-        // Under multi-tenant, the `u`-tag host is the row-zero community
-        // binding. An event signed for `localhost` MUST NOT pass against an
-        // expected URL on `127.0.0.1` (or `::1`) — collapsing the three would
-        // be a host-check side door. Production reconstructs `expected_url`
-        // from the community-bound host; tests do the same.
+    fn loopback_aliases_are_one_host() {
+        // keva fork: `buzz_core::tenant::normalize_host` folds localhost,
+        // 127.0.0.1 and [::1] into ONE community, so the NIP-98 `u`-tag must
+        // verify across those spellings too — the desktop signs for
+        // `localhost:3000` while the agents it spawns sign for
+        // `127.0.0.1:3000`, against the same relay. Upstream kept them distinct
+        // (row-zero host binding); with the community itself folded there is
+        // no separate tenant left for a "side door" to reach.
         let keys = Keys::generate();
         let localhost_url = "http://localhost:3000/api/tokens";
         let loopback_url = "http://127.0.0.1:3000/api/tokens";
         let json = make_nip98_event(&keys, localhost_url, TEST_METHOD, None, None);
-        let result = verify_nip98_event(&json, loopback_url, TEST_METHOD, None);
-        assert!(
-            matches!(result, Err(AuthError::Nip98Invalid(_))),
-            "localhost u-tag must NOT match a 127.0.0.1 expected_url; got {result:?}"
-        );
-
-        // Symmetric: signed-for-127.0.0.1 against expected localhost — same answer.
+        assert!(verify_nip98_event(&json, loopback_url, TEST_METHOD, None).is_ok());
         let json2 = make_nip98_event(&keys, loopback_url, TEST_METHOD, None, None);
-        let result2 = verify_nip98_event(&json2, localhost_url, TEST_METHOD, None);
-        assert!(
-            matches!(result2, Err(AuthError::Nip98Invalid(_))),
-            "127.0.0.1 u-tag must NOT match a localhost expected_url; got {result2:?}"
-        );
+        assert!(verify_nip98_event(&json2, localhost_url, TEST_METHOD, None).is_ok());
 
-        // And identity still holds — same host on both sides verifies.
-        let json3 = make_nip98_event(&keys, loopback_url, TEST_METHOD, None, None);
-        assert!(verify_nip98_event(&json3, loopback_url, TEST_METHOD, None).is_ok());
+        // A different host is still a different host.
+        let other_url = "http://relay.example:3000/api/tokens";
+        let json3 = make_nip98_event(&keys, other_url, TEST_METHOD, None, None);
+        assert!(matches!(
+            verify_nip98_event(&json3, localhost_url, TEST_METHOD, None),
+            Err(AuthError::Nip98Invalid(_))
+        ));
     }
 }

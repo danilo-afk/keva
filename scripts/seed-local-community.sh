@@ -54,10 +54,13 @@ if primary:
 # Under row-zero host binding these are distinct hosts, so seed loopback aliases
 # for local dev to avoid a fail-closed 404 when one side uses an alternate
 # authority. Non-loopback deployments seed only RELAY_URL's authority.
-if host in {"localhost", "127.0.0.1"}:
-    hosts.extend(["localhost", "127.0.0.1"])
+# The relay's normalize_host() folds 127.0.0.1 and [::1] into "localhost", so
+# one row per port is enough — seeding 127.0.0.1 too would create a second,
+# empty community that desktop-managed agents (which dial 127.0.0.1) fall into.
+if host in {"localhost", "127.0.0.1", "[::1]"}:
+    hosts.extend(["localhost"])
     if port:
-        hosts.extend([f"localhost:{port}", f"127.0.0.1:{port}"])
+        hosts.extend([f"localhost:{port}"])
 
 seen = []
 for h in hosts:
