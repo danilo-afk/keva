@@ -311,11 +311,29 @@ export function MachineOnboardingFlow({
               direction={transitionDirection}
               transitionKey={`machine-identity-${transitionDirection}`}
             >
-              <img
-                alt="Kiara"
-                className="w-full max-w-[420px]"
-                src="/kiara/wordmark.png"
-              />
+              <span
+                aria-label="kiara"
+                className="flex items-center gap-4"
+                role="img"
+              >
+                <img
+                  alt=""
+                  className="h-[84px] w-auto"
+                  draggable={false}
+                  src="/kiara/icon-mark.png"
+                />
+                <span
+                  className="leading-none text-[#F2F2ED]"
+                  style={{
+                    fontFamily: "'Sora Variable', Sora, sans-serif",
+                    fontWeight: 700,
+                    fontSize: 72,
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  kiara<span className="text-[#F2C230]">.</span>
+                </span>
+              </span>
               <p className="mt-2 max-w-[560px] text-center text-2xl font-normal leading-none text-foreground">
                 Your people, your agents, your projects —<br />
                 all in one place.

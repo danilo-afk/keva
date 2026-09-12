@@ -10,7 +10,7 @@ export function BuzzMark({ className }: { className?: string }) {
       aria-hidden="true"
       className={["buzz-mark object-contain", className].filter(Boolean).join(" ")}
       draggable={false}
-      src="/kiara/mark-light.png"
+      src="/kiara/mark.png"
     />
   );
 }

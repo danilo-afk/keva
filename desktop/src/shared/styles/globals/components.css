@@ -289,15 +289,15 @@
     /* keva: dark Kiara shell — dots over a near-black gradient. */
     background-image:
       radial-gradient(circle, rgb(255 255 255 / 0.06) 1px, transparent 1px),
-      linear-gradient(to bottom, #0b0b0c, var(--buzz-onboarding-shell-bottom));
+      linear-gradient(to bottom, #141414, var(--buzz-onboarding-shell-bottom));
     background-size:
       24px 24px,
       auto;
   }
 
   .buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-welcome {
-    background-color: #0b0b0c;
-    --buzz-onboarding-shell-bottom: #0b0b0c;
+    background-color: #141414;
+    --buzz-onboarding-shell-bottom: #141414;
     /* Subtle dot grid: 2px dots spaced on a 24px lattice. */
     background-image: radial-gradient(
       circle,
@@ -311,28 +311,28 @@
     /* Landing "chartreuse" — the welcome background; reused for the CTA label. */
     color-scheme: dark;
     /* keva: Kiara yellow accent on a dark field (was Buzz chartreuse). */
-    --buzz-welcome-chartreuse: #ffe01b;
+    --buzz-welcome-chartreuse: #f2c230;
     /* Bottom stop of the onboarding shell gradient; also the docked-footer
        scrim color so content scrolling under the CTA fades into the page. */
-    --buzz-onboarding-shell-bottom: #131316;
+    --buzz-onboarding-shell-bottom: #0e0e0f;
     /* Label color for the primary onboarding CTA (light blue on the dark pill). */
     --buzz-onboarding-cta-label: #111111;
     /* Olive ink for the backup step's private key and its "never share" caption,
        reading against the fuzzy-white key frame. */
     --buzz-onboarding-backup-ink: #717106;
-    --background: 240 3% 4%;
-    --foreground: 0 0% 96%;
-    --primary: 52 100% 55%;
+    --background: 0 0% 8%;
+    --foreground: 60 16% 95%;
+    --primary: 45 88% 57%;
     --primary-foreground: 0 0% 7%;
     --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 96%;
     --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 66%;
+    --muted-foreground: 60 3% 65%;
     --accent: 0 0% 14%;
     --accent-foreground: 0 0% 96%;
     --border: 0 0% 20%;
     --input: 0 0% 20%;
-    --ring: 52 100% 55%;
+    --ring: 45 88% 57%;
     --buzz-onboarding-emoji-picker-background: 245, 245, 245;
     --buzz-onboarding-emoji-picker-color: 23, 23, 23;
     --buzz-onboarding-emoji-picker-input: 255, 255, 255;
