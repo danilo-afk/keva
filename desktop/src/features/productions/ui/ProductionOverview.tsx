@@ -12,7 +12,10 @@ import {
 } from "@/features/agents/hooks";
 import { useTeamsQuery } from "@/features/agents/teamHooks";
 import { useGlobalAgentConfig } from "@/features/agents/useGlobalAgentConfig";
-import { useChannelsQuery } from "@/features/channels/hooks";
+import { channelsQueryKey, useChannelsQuery } from "@/features/channels/hooks";
+import { createChannel } from "@/shared/api/tauriChannels";
+import { Input } from "@/shared/ui/input";
+import { productionChannelName } from "../createProduction";
 import { Button } from "@/shared/ui/button";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { Textarea } from "@/shared/ui/textarea";
@@ -85,6 +88,34 @@ function ProductionOverviewContent({ production }: { production: Production }) {
   );
   const [teamId, setTeamId] = React.useState("");
   const [applying, setApplying] = React.useState(false);
+  const [newChannel, setNewChannel] = React.useState("");
+  const [addingChannel, setAddingChannel] = React.useState(false);
+
+  async function handleAddChannel() {
+    const name = productionChannelName(production.slug, newChannel);
+    if (!newChannel.trim() || name === production.slug) return;
+    setAddingChannel(true);
+    try {
+      const channel = await createChannel({
+        name,
+        channelType: "stream",
+        visibility: "private",
+        description: `Production ${production.name}`,
+      });
+      const input = productionToInput(production);
+      input.channelIds.push(channel.id);
+      await publishMutation.mutateAsync(input);
+      await queryClient.invalidateQueries({ queryKey: channelsQueryKey });
+      setNewChannel("");
+      toast.success(`#${channel.name} added to the production.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add the channel.",
+      );
+    } finally {
+      setAddingChannel(false);
+    }
+  }
 
   const channelsById = React.useMemo(
     () => new Map((channelsQuery.data ?? []).map((c) => [c.id, c])),
@@ -244,6 +275,35 @@ function ProductionOverviewContent({ production }: { production: Production }) {
               })}
             </ul>
           )}
+          <form
+            className="flex items-center gap-2 pt-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAddChannel();
+            }}
+          >
+            <span className="text-xs text-muted-foreground">
+              {production.slug}-
+            </span>
+            <Input
+              aria-label="New channel name"
+              className="h-8 flex-1"
+              data-testid="production-add-channel-name"
+              disabled={addingChannel}
+              onChange={(e) => setNewChannel(e.target.value)}
+              placeholder="audio"
+              value={newChannel}
+            />
+            <Button
+              data-testid="production-add-channel"
+              disabled={!newChannel.trim() || addingChannel}
+              size="sm"
+              type="submit"
+              variant="outline"
+            >
+              {addingChannel ? "Adding…" : "Add channel"}
+            </Button>
+          </form>
         </div>
         <div className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

@@ -3,9 +3,11 @@ import {
   ChevronDown,
   ChevronRight,
   Clapperboard,
+  EllipsisVertical,
   Hash,
   Lock,
   Plus,
+  Sparkles,
 } from "lucide-react";
 import * as React from "react";
 
@@ -38,6 +40,13 @@ import {
   SidebarMenuItem,
 } from "@/shared/ui/sidebar";
 import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/ui/dropdown-menu";
+import { deferMenuAction } from "@/features/sidebar/ui/sidebarMenuHelpers";
 
 import {
   SECTION_ACTION_VISIBILITY_CLASS,
@@ -80,9 +89,9 @@ export function SidebarProductionsSection() {
   async function handleSeedExamples() {
     setSeeding(true);
     try {
-      // Examples ship with the first team available (if any) so agents are
-      // already grouped by production; the user can change it in Overview.
-      const team = (teamsQuery.data ?? [])[0] ?? null;
+      // Only a team the user created is deployed automatically (built-in
+      // teams can spawn many harnesses); pick another one in Overview.
+      const team = (teamsQuery.data ?? []).find((t) => !t.isBuiltin) ?? null;
       const result = await seedExampleProductions({
         existingSlugs: new Set(
           (productionsQuery.data ?? []).map((p) => p.slug),
@@ -166,6 +175,35 @@ export function SidebarProductionsSection() {
           >
             <Plus className="h-4 w-4" />
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="More actions for Productions"
+                className={cn(
+                  SECTION_ICON_BUTTON_CLASS,
+                  SECTION_ACTION_VISIBILITY_CLASS,
+                )}
+                data-testid="sidebar-productions-settings"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                <EllipsisVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                data-testid="sidebar-productions-seed-examples-menu"
+                disabled={seeding}
+                onSelect={() =>
+                  deferMenuAction(() => void handleSeedExamples())
+                }
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Create example productions</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {!collapsed ? (
@@ -257,7 +295,20 @@ export function SidebarProductionsSection() {
                 );
               })}
             </SidebarMenu>
-          ) : productionsQuery.isPending ? null : (
+          ) : productionsQuery.isPending ? null : productionsQuery.isError ? (
+            <div className="space-y-1 px-2 py-1">
+              <p className="text-xs text-destructive">
+                Couldn't load productions
+              </p>
+              <button
+                className="text-xs text-sidebar-foreground/70 underline-offset-2 hover:underline"
+                onClick={() => void productionsQuery.refetch()}
+                type="button"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
             <div className="space-y-1 px-2 py-1">
               <p className="text-xs text-sidebar-foreground/50">
                 No productions yet
