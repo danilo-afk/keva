@@ -58,6 +58,14 @@ export const SHOT_STATES = [
 ] as const;
 export type ShotState = (typeof SHOT_STATES)[number];
 
+export const SHOT_EVALS = [
+  { key: "voices", label: "Vozes dos personagens" },
+  { key: "quality", label: "Qualidade da cena" },
+  { key: "director", label: "Aprovação do diretor" },
+] as const;
+export type ShotEvalKey = (typeof SHOT_EVALS)[number]["key"];
+export type ShotEvals = Record<ShotEvalKey, boolean>;
+
 export type Shot = {
   n: number;
   start: string;
@@ -74,6 +82,8 @@ export type Shot = {
   clip: string | null;
   state: ShotState;
   notes: string;
+  /** Review checklist; `director` true is what makes a shot approved. */
+  evals: ShotEvals;
 };
 
 export type Episode = EntityMeta & {
@@ -269,6 +279,16 @@ export function parseShot(raw: unknown, index: number): Shot {
       ? (state as ShotState)
       : "cartela",
     notes: str(s.notes),
+    evals: parseEvals(s.evals),
+  };
+}
+
+function parseEvals(raw: unknown): ShotEvals {
+  const o = obj(raw);
+  return {
+    voices: o.voices === true,
+    quality: o.quality === true,
+    director: o.director === true,
   };
 }
 

@@ -29,6 +29,7 @@ import {
 } from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Textarea } from "@/shared/ui/textarea";
 import { pickAndUploadMedia } from "@/shared/api/tauri";
 import { toast as notify } from "sonner";
@@ -41,6 +42,7 @@ import {
   formatTimecode,
   sequenceTimeline,
   isValidEntityId,
+  SHOT_EVALS,
   SHOT_STATES,
   type Shot,
   type ShotState,
@@ -81,6 +83,7 @@ export function emptyShot(n: number): Shot {
     clip: null,
     state: "cartela",
     notes: "",
+    evals: { voices: false, quality: false, director: false },
   };
 }
 
@@ -879,26 +882,59 @@ function ShotEditor({
 }) {
   const media = useMediaSrc();
   const [lightbox, setLightbox] = React.useState<number | null>(null);
-  const [uploading, setUploading] = React.useState(false);
-  async function handleAddFrames() {
-    setUploading(true);
+  const [uploading, setUploading] = React.useState<"frames" | "clip" | null>(
+    null,
+  );
+  const [promptsOpen, setPromptsOpen] = React.useState(false);
+
+  async function upload(kind: "frames" | "clip") {
+    setUploading(kind);
     try {
       const blobs = await pickAndUploadMedia();
       if (blobs.length === 0) return;
-      onChange({
-        frames: [...shot.frames, ...blobs.map((b) => b.url)],
-        state: shot.state === "cartela" ? "gerado" : shot.state,
-      });
+      if (kind === "clip") {
+        onChange({
+          clip: blobs[0].url,
+          state: shot.state === "cartela" ? "gerado" : shot.state,
+        });
+      } else {
+        onChange({
+          frames: [...shot.frames, ...blobs.map((b) => b.url)],
+          state: shot.state === "cartela" ? "gerado" : shot.state,
+        });
+      }
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "Upload failed.");
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   }
-  const text = (key: keyof Shot, label: string, placeholder?: string) => (
+
+  function setEval(key: keyof Shot["evals"], value: boolean) {
+    const evals = { ...shot.evals, [key]: value };
+    // Director approval is the gate: checking it approves the shot, unchecking
+    // sends it back to review.
+    const state: ShotState =
+      key === "director"
+        ? value
+          ? "aprovado"
+          : shot.state === "aprovado"
+            ? "revisao"
+            : shot.state
+        : shot.state === "cartela" && value
+          ? "revisao"
+          : shot.state;
+    onChange({ evals, state });
+  }
+
+  const field = (
+    key: "start" | "end" | "scene" | "framing" | "cast" | "dialogue",
+    label: string,
+    placeholder?: string,
+  ) => (
     <div className="space-y-1">
       <label
-        className="text-xs font-medium text-muted-foreground"
+        className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground"
         htmlFor={`shot-${shot.n}-${key}`}
       >
         {label}
@@ -908,207 +944,282 @@ function ShotEditor({
         id={`shot-${shot.n}-${key}`}
         onChange={(e) => onChange({ [key]: e.target.value } as Partial<Shot>)}
         placeholder={placeholder}
-        value={String(shot[key] ?? "")}
+        value={shot[key]}
       />
     </div>
   );
+  const area = (
+    key: "action" | "sound" | "notes",
+    label: string,
+    rows: number,
+    placeholder?: string,
+  ) => (
+    <div className="space-y-1">
+      <label
+        className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground"
+        htmlFor={`shot-${shot.n}-${key}`}
+      >
+        {label}
+      </label>
+      <Textarea
+        className="min-h-0 text-[13px]"
+        id={`shot-${shot.n}-${key}`}
+        onChange={(e) => onChange({ [key]: e.target.value } as Partial<Shot>)}
+        placeholder={placeholder}
+        rows={rows}
+        value={shot[key]}
+      />
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Kicker>Shot {shot.n}</Kicker>
-        <div className="flex items-center gap-1">
-          <Button
-            aria-label="Move up"
-            className="h-7 w-7 p-0"
-            disabled={!canMoveUp}
-            onClick={() => onMove(-1)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <ArrowUp className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            aria-label="Move down"
-            className="h-7 w-7 p-0"
-            disabled={!canMoveDown}
-            onClick={() => onMove(1)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <ArrowDown className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            className="h-7 text-xs text-destructive hover:text-destructive"
-            data-testid={`shot-remove-${shot.n}`}
-            onClick={onRemove}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove shot
-          </Button>
-        </div>
-      </div>
-      <div className="grid gap-3 md:grid-cols-6">
-        {text("start", "Start", "00:00")}
-        {text("end", "End", "00:06")}
-        <div className="md:col-span-2">
-          {text("scene", "Scene", "EXT. VALE DO SEVERN")}
-        </div>
-        <div className="md:col-span-2">
-          {text("framing", "Shot / framing", "NOITE · plano geral")}
-        </div>
-        <div className="md:col-span-3">
-          {text("cast", "Cast", "Jony (11), Maya (11)")}
-        </div>
-        <div className="md:col-span-3">
-          {text("dialogue", "Dialogue", "Agnes: Jony, acorda!")}
-        </div>
-        <div className="space-y-1 md:col-span-4">
-          <label
-            className="text-xs font-medium text-muted-foreground"
-            htmlFor={`shot-${shot.n}-action`}
-          >
-            What we see
-          </label>
-          <Textarea
-            className="min-h-0"
-            id={`shot-${shot.n}-action`}
-            onChange={(e) => onChange({ action: e.target.value })}
-            rows={2}
-            value={shot.action}
-          />
-        </div>
-        <div className="space-y-1 md:col-span-2">
-          <label
-            className="text-xs font-medium text-muted-foreground"
-            htmlFor={`shot-${shot.n}-sound`}
-          >
-            Sound
-          </label>
-          <Textarea
-            className="min-h-0"
-            id={`shot-${shot.n}-sound`}
-            onChange={(e) => onChange({ sound: e.target.value })}
-            rows={2}
-            value={shot.sound}
-          />
-        </div>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_280px]">
-        <ProductionLightbox
-          images={shot.frames.map((url) => ({ url }))}
-          index={lightbox}
-          onClose={() => setLightbox(null)}
-          onIndexChange={setLightbox}
-          onRemove={(i) => {
-            setLightbox(null);
-            onChange({ frames: shot.frames.filter((_, idx) => idx !== i) });
-          }}
-        />
-        <div className="space-y-1.5">
-          <Kicker>Storyboard prompt</Kicker>
-          <Textarea
-            className="min-h-0 font-mono text-xs leading-relaxed"
-            onChange={(e) => onChange({ storyboardPrompt: e.target.value })}
-            rows={8}
-            value={shot.storyboardPrompt}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Kicker>Video prompt</Kicker>
-          <Textarea
-            className="min-h-0 font-mono text-xs leading-relaxed"
-            onChange={(e) => onChange({ videoPrompt: e.target.value })}
-            rows={8}
-            value={shot.videoPrompt}
-          />
-        </div>
+    <div className="space-y-4" data-testid={`shot-editor-${shot.n}`}>
+      <ProductionLightbox
+        images={shot.frames.map((url) => ({ url }))}
+        index={lightbox}
+        onClose={() => setLightbox(null)}
+        onIndexChange={setLightbox}
+        onRemove={(i) => {
+          setLightbox(null);
+          onChange({ frames: shot.frames.filter((_, idx) => idx !== i) });
+        }}
+      />
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        {/* Media column: the generated clip first, frames below. */}
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Kicker>State</Kicker>
-            <select
-              className={`${SELECT_CLASS} w-full`}
-              onChange={(e) => onChange({ state: e.target.value as ShotState })}
-              value={shot.state}
-            >
-              {SHOT_STATES.map((s) => (
-                <option key={s} value={s}>
-                  {SHOT_STATE_LABEL[s]}
-                </option>
-              ))}
-            </select>
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-black">
+            {shot.clip ? (
+              // biome-ignore lint/a11y/useMediaCaption: generated clips carry no captions
+              <video
+                className="aspect-video w-full"
+                controls
+                data-testid={`shot-clip-${shot.n}`}
+                preload="metadata"
+                src={media(shot.clip)}
+              />
+            ) : shot.frames[0] ? (
+              <button
+                className="relative block aspect-video w-full"
+                onClick={() => setLightbox(0)}
+                type="button"
+              >
+                <img
+                  alt=""
+                  className="h-full w-full object-cover opacity-80"
+                  src={media(shot.frames[0])}
+                />
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 px-3 py-2 text-left text-xs text-white/85">
+                  Still frame · no clip yet
+                </span>
+              </button>
+            ) : (
+              <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 text-muted-foreground">
+                <Film className="h-6 w-6" />
+                <span className="text-xs">No clip yet</span>
+              </div>
+            )}
           </div>
-          {shot.cast ? (
-            <div>
-              <Kicker>Cast</Kicker>
-              <p className="mt-1 text-sm">{shot.cast}</p>
-            </div>
-          ) : null}
-          <div>
-            <div className="flex items-center justify-between">
-              <Kicker>Frames ({shot.frames.length})</Kicker>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              className="h-7 text-xs"
+              disabled={uploading != null}
+              onClick={() => void upload("clip")}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {uploading === "clip"
+                ? "Uploading…"
+                : shot.clip
+                  ? "Replace clip"
+                  : "Upload clip"}
+            </Button>
+            {shot.clip ? (
               <Button
-                className="h-7 px-2 text-xs"
-                disabled={uploading}
-                onClick={() => void handleAddFrames()}
+                className="h-7 text-xs"
+                onClick={() => onChange({ clip: null })}
                 size="sm"
                 type="button"
                 variant="ghost"
               >
-                {uploading ? "Uploading…" : "Add"}
+                Remove clip
+              </Button>
+            ) : null}
+            <Button
+              className="h-7 text-xs"
+              disabled={uploading != null}
+              onClick={() => void upload("frames")}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {uploading === "frames" ? "Uploading…" : "Add frames"}
+            </Button>
+            {shot.frames.length > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                {shot.frames.length} frame(s)
+              </span>
+            ) : null}
+          </div>
+          {shot.frames.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {shot.frames.map((url, i) => (
+                <button
+                  className="overflow-hidden rounded-md border border-border/60 hover:border-foreground/40"
+                  key={url}
+                  onClick={() => setLightbox(i)}
+                  type="button"
+                >
+                  <img alt="" className="h-14 object-cover" src={media(url)} />
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <Kicker>Evals</Kicker>
+              <StateChip state={shot.state} />
+            </div>
+            <ul className="space-y-2">
+              {SHOT_EVALS.map((ev) => (
+                <li className="flex items-center gap-2" key={ev.key}>
+                  <Checkbox
+                    checked={shot.evals[ev.key]}
+                    data-testid={`shot-eval-${shot.n}-${ev.key}`}
+                    id={`shot-${shot.n}-eval-${ev.key}`}
+                    onCheckedChange={(v) => setEval(ev.key, v === true)}
+                  />
+                  <label
+                    className="text-sm"
+                    htmlFor={`shot-${shot.n}-eval-${ev.key}`}
+                  >
+                    {ev.label}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                State
+              </span>
+              <select
+                className={`${SELECT_CLASS} h-8 flex-1`}
+                onChange={(e) =>
+                  onChange({ state: e.target.value as ShotState })
+                }
+                value={shot.state}
+              >
+                {SHOT_STATES.map((st) => (
+                  <option key={st} value={st}>
+                    {SHOT_STATE_LABEL[st]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Fields column. */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Kicker>Shot {shot.n}</Kicker>
+            <div className="flex items-center gap-1">
+              <Button
+                aria-label="Move up"
+                className="h-7 w-7 p-0"
+                disabled={!canMoveUp}
+                onClick={() => onMove(-1)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                aria-label="Move down"
+                className="h-7 w-7 p-0"
+                disabled={!canMoveDown}
+                onClick={() => onMove(1)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                className="h-7 text-xs text-destructive hover:text-destructive"
+                data-testid={`shot-remove-${shot.n}`}
+                onClick={onRemove}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove
               </Button>
             </div>
-            {shot.frames.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {shot.frames.map((url, i) => (
-                  <button
-                    className="overflow-hidden rounded-md border border-border/60 hover:border-foreground/40"
-                    key={url}
-                    onClick={() => setLightbox(i)}
-                    type="button"
-                  >
-                    <img
-                      alt=""
-                      className="h-16 object-cover"
-                      src={media(url)}
-                    />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-1 text-xs text-muted-foreground">
-                No frames yet.
-              </p>
-            )}
           </div>
-          {shot.clip ? (
-            <div>
-              <Kicker>Clip</Kicker>
-              {/* biome-ignore lint/a11y/useMediaCaption: generated clips carry no captions */}
-              <video
-                className="mt-1 w-full rounded-md border border-border/60"
-                controls
-                preload="metadata"
-                src={media(shot.clip)}
-              />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {field("start", "Start", "00:00")}
+            {field("end", "End", "00:06")}
+            <div className="col-span-2">
+              {field("scene", "Scene", "EXT. VALE DO SEVERN")}
             </div>
-          ) : (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Film className="h-3.5 w-3.5" /> No clip yet
-            </p>
-          )}
-          <div className="space-y-1.5">
-            <Kicker>Notes</Kicker>
-            <Textarea
-              className="min-h-0 text-xs"
-              onChange={(e) => onChange({ notes: e.target.value })}
-              rows={3}
-              value={shot.notes}
-            />
+            <div className="col-span-2">
+              {field("framing", "Shot / framing", "NOITE · plano geral")}
+            </div>
+            <div className="col-span-2">
+              {field("cast", "Cast", "Jony (11), Maya (11)")}
+            </div>
           </div>
+          {area("action", "What we see", 3)}
+          <div className="grid gap-3 md:grid-cols-2">
+            {field("dialogue", "Dialogue", "Agnes: Jony, acorda!")}
+            {area("sound", "Sound", 1)}
+          </div>
+          {area(
+            "notes",
+            "Notes",
+            2,
+            "Review notes, what to regenerate, what was measured.",
+          )}
+          <details
+            className="rounded-lg border border-border/60"
+            onToggle={(e) =>
+              setPromptsOpen((e.target as HTMLDetailsElement).open)
+            }
+            open={promptsOpen}
+          >
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-muted-foreground">
+              Prompts
+              {shot.videoPrompt
+                ? ` · video ${shot.videoPrompt.length.toLocaleString()} chars`
+                : " · empty"}
+            </summary>
+            <div className="grid gap-3 border-t border-border/60 p-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Kicker>Storyboard prompt</Kicker>
+                <Textarea
+                  className="min-h-0 font-mono text-xs leading-relaxed"
+                  onChange={(e) =>
+                    onChange({ storyboardPrompt: e.target.value })
+                  }
+                  rows={8}
+                  value={shot.storyboardPrompt}
+                />
+              </div>
+              <div className="space-y-1">
+                <Kicker>Video prompt</Kicker>
+                <Textarea
+                  className="min-h-0 font-mono text-xs leading-relaxed"
+                  onChange={(e) => onChange({ videoPrompt: e.target.value })}
+                  rows={8}
+                  value={shot.videoPrompt}
+                />
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>
