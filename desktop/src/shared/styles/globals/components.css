@@ -286,11 +286,10 @@
     /* Dot grid over the chartreuse→light-blue gradient (dots layer first so
        they sit on top). The welcome page overrides this with dots over a flat
        chartreuse fill below. */
-    /* keva: Paper shell for the steps (Kiara light surface); the landing
-       alone is dark (see .buzz-onboarding-welcome below). */
+    /* keva: Ink shell (design system) with the dot grid in Paper at 6%. */
     background-image:
-      radial-gradient(circle, rgb(0 0 0 / 0.07) 1px, transparent 1px),
-      linear-gradient(to bottom, #f2f2ed, var(--buzz-onboarding-shell-bottom));
+      radial-gradient(circle, rgb(242 242 237 / 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, #141414, var(--buzz-onboarding-shell-bottom));
     background-size:
       24px 24px,
       auto;
@@ -299,13 +298,6 @@
   .buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-welcome {
     background-color: #141414;
     --buzz-onboarding-shell-bottom: #141414;
-    color-scheme: dark;
-    --background: 0 0% 8%;
-    --foreground: 60 16% 95%;
-    --muted-foreground: 60 3% 53%;
-    --primary: 45 88% 57%;
-    --primary-foreground: 0 0% 7%;
-    --buzz-onboarding-cta-label: #141414;
     /* Subtle dot grid: 2px dots spaced on a 24px lattice. */
     background-image: radial-gradient(
       circle,
@@ -317,29 +309,31 @@
 
   .buzz-onboarding-neutral-theme {
     /* Landing "chartreuse" — the welcome background; reused for the CTA label. */
-    /* keva: Gold accent (was Buzz chartreuse). */
+    color-scheme: dark;
+    /* keva palette (design system): Ink #141414 · Paper #F2F2ED · Cloud #E4E4DF
+       · Gold #F2C230 · Gold Deep #8A6D00 · Neutral #8A8A84 */
     --buzz-welcome-chartreuse: #f2c230;
     /* Bottom stop of the onboarding shell gradient; also the docked-footer
        scrim color so content scrolling under the CTA fades into the page. */
-    --buzz-onboarding-shell-bottom: #e4e4df; /* Cloud */
+    --buzz-onboarding-shell-bottom: #0e0e0f;
     /* Label color for the primary onboarding CTA (light blue on the dark pill). */
-    --buzz-onboarding-cta-label: #f2c230; /* Gold label on the ink pill */
+    --buzz-onboarding-cta-label: #141414; /* Ink label on the Gold pill */
     /* Olive ink for the backup step's private key and its "never share" caption,
        reading against the fuzzy-white key frame. */
-    --buzz-onboarding-backup-ink: #8a6d00; /* Gold Deep */
-    --background: 60 16% 95%;
-    --foreground: 0 0% 8%;
-    --primary: 0 0% 8%;
-    --primary-foreground: 60 16% 95%;
-    --secondary: 60 6% 89%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 60 6% 89%;
-    --muted-foreground: 60 3% 53%; /* Neutral #8A8A84 */
-    --accent: 60 6% 89%;
-    --accent-foreground: 0 0% 8%;
-    --border: 60 6% 84%;
-    --input: 60 6% 84%;
-    --ring: 0 0% 8%;
+    --buzz-onboarding-backup-ink: #f2c230; /* Gold on the ink card */
+    --background: 0 0% 8%;            /* Ink */
+    --foreground: 60 16% 95%;         /* Paper */
+    --primary: 45 88% 57%;            /* Gold */
+    --primary-foreground: 0 0% 8%;
+    --secondary: 60 3% 14%;
+    --secondary-foreground: 60 16% 95%;
+    --muted: 60 3% 14%;
+    --muted-foreground: 60 3% 53%;    /* Neutral */
+    --accent: 60 3% 16%;
+    --accent-foreground: 60 16% 95%;
+    --border: 60 6% 24%;
+    --input: 60 6% 24%;
+    --ring: 45 88% 57%;
     --buzz-onboarding-emoji-picker-background: 245, 245, 245;
     --buzz-onboarding-emoji-picker-color: 23, 23, 23;
     --buzz-onboarding-emoji-picker-input: 255, 255, 255;
@@ -384,16 +378,16 @@
   }
 
   .buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-security-theme {
-    background-color: #010103;
+    background-color: #0e0e0f;
     background-image:
-      radial-gradient(circle, rgb(143 211 255 / 0.11) 1px, transparent 1px),
+      radial-gradient(circle, rgb(242 242 237 / 0.06) 1px, transparent 1px),
       radial-gradient(
         ellipse at 50% 58%,
-        rgb(28 112 196 / 0.24) 0%,
-        rgb(18 76 138 / 0.1) 38%,
+        rgb(242 194 48 / 0.10) 0%,
+        rgb(138 109 0 / 0.06) 38%,
         transparent 66%
       ),
-      linear-gradient(to bottom, #010103 0%, #040914 46%, #082b49 100%);
+      linear-gradient(to bottom, #0e0e0f 0%, #141414 100%);
     background-size:
       24px 24px,
       auto,
@@ -826,12 +820,21 @@
   margin: 0;
 }
 
-/* keva: the Kiara mark is gold on dark surfaces and ink on the light
-   onboarding steps ("Gold no fundo escuro, ink no fundo claro"). */
-.buzz-onboarding-neutral-theme:not(.buzz-onboarding-welcome) .buzz-mark--gold,
-.buzz-mark--ink {
+/* keva: the Kiara mark is gold on dark surfaces; the ink rendition stays
+   available for light surfaces (add `.buzz-surface-light` to opt in). */
+.buzz-mark--ink,
+.buzz-surface-light .buzz-mark--gold {
   display: none;
 }
-.buzz-onboarding-neutral-theme:not(.buzz-onboarding-welcome) .buzz-mark--ink {
+.buzz-surface-light .buzz-mark--ink {
   display: block;
+}
+
+/* keva: onboarding textured cards use the Ink powder texture (#1E1E1C center)
+   instead of the baked white one, so Paper text reads on them. */
+.buzz-onboarding-neutral-theme .buzz-card-textured {
+  --buzz-card-textured-source: url("../../ui/assets/card-texture-kiara.png");
+}
+.buzz-onboarding-neutral-theme .buzz-card-textured-compact {
+  --buzz-card-textured-source: url("../../ui/assets/card-texture-kiara-compact.png");
 }
