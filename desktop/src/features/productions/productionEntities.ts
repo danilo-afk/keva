@@ -29,7 +29,26 @@ export type ProductionDocument = EntityMeta & {
   title: string;
   body: string;
   version: number;
+  /** "markdown" for prose; "animatic" marks the cut list stored as a doc. */
+  format: string;
 };
+
+/** One exported cut of the film. Lives in the `animatic` document. */
+export type AnimaticCut = {
+  url: string;
+  label: string;
+  version: number;
+  uploadedAt: number;
+};
+
+export type Animatic = {
+  cuts: AnimaticCut[];
+  currentVersion: number | null;
+  notes: string;
+  docVersion: number;
+};
+
+export const ANIMATIC_DOC_ID = "animatic";
 
 export const SHOT_STATES = [
   "cartela",
@@ -152,7 +171,81 @@ export function parseDocument(
     title: str(body.title, meta.id),
     body: str(body.body),
     version: num(body.version, 1),
+    format: str(body.format, "markdown"),
   };
+}
+
+export function parseAnimatic(
+  event: RelayEvent,
+  slug: string,
+): Animatic | null {
+  const meta = parseMeta(event, slug, "doc");
+  const body = parseContent(event);
+  if (!meta || !body || meta.id !== ANIMATIC_DOC_ID) return null;
+  const cuts = (Array.isArray(body.cuts) ? body.cuts : [])
+    .map((c) => {
+      const o = obj(c);
+      return {
+        url: str(o.url),
+        label: str(o.label),
+        version: num(o.version, 1),
+        uploadedAt: num(o.uploadedAt, 0),
+      };
+    })
+    .filter((c) => c.url);
+  return {
+    cuts,
+    currentVersion:
+      typeof body.currentVersion === "number" ? body.currentVersion : null,
+    notes: str(body.body),
+    docVersion: num(body.version, 1),
+  };
+}
+
+export function animaticToContent(a: Animatic) {
+  return {
+    title: "Animatic",
+    format: "animatic",
+    body: a.notes,
+    version: a.docVersion,
+    currentVersion: a.currentVersion,
+    cuts: a.cuts,
+  };
+}
+
+/** "37 s", "1:02", "62s" → seconds; falls back to the last shot's end. */
+export function episodeSeconds(
+  ep: Pick<Episode, "duration" | "shots">,
+): number | null {
+  const d = ep.duration.trim().toLowerCase();
+  let m = /^(\d+)\s*s$/.exec(d);
+  if (m) return Number(m[1]);
+  m = /^(\d+):(\d{1,2})$/.exec(d);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  m = /^(\d+(?:[.,]\d+)?)\s*min$/.exec(d);
+  if (m) return Math.round(Number(m[1].replace(",", ".")) * 60);
+  const last = ep.shots[ep.shots.length - 1];
+  const end = last ? /^(\d+):(\d{1,2})$/.exec(last.end.trim()) : null;
+  return end ? Number(end[1]) * 60 + Number(end[2]) : null;
+}
+
+export function formatTimecode(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Where each episode starts in the film, in episode order. */
+export function sequenceTimeline(
+  episodes: Episode[],
+): Map<string, { start: number; end: number | null }> {
+  const out = new Map<string, { start: number; end: number | null }>();
+  let cursor = 0;
+  for (const ep of [...episodes].sort((a, b) => a.number - b.number)) {
+    const len = episodeSeconds(ep);
+    out.set(ep.id, { start: cursor, end: len == null ? null : cursor + len });
+    if (len != null) cursor += len;
+  }
+  return out;
 }
 
 export function parseShot(raw: unknown, index: number): Shot {

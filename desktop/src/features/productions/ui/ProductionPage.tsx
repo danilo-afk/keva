@@ -2,6 +2,7 @@ import {
   BookOpen,
   Clapperboard,
   EllipsisVertical,
+  Film,
   Images,
   LayoutDashboard,
   ListVideo,
@@ -50,6 +51,7 @@ import { PageHeader } from "@/shared/ui/PageHeader";
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
 import {
+  useProductionAnimatic,
   useProductionCharacters,
   useProductionDocuments,
   useProductionEpisodes,
@@ -62,6 +64,7 @@ import {
   type Production,
   productionToInput,
 } from "../productionEvents";
+import { ProductionAnimaticTab } from "./ProductionAnimaticTab";
 import { ProductionAssetsTab } from "./ProductionAssetsTab";
 import { ProductionCharactersTab } from "./ProductionCharactersTab";
 import { ProductionDocumentsTab } from "./ProductionDocumentsTab";
@@ -76,6 +79,7 @@ export const PRODUCTION_TABS = [
   "characters",
   "documents",
   "assets",
+  "animatic",
   "team",
 ] as const;
 export type ProductionTab = (typeof PRODUCTION_TABS)[number];
@@ -101,6 +105,7 @@ const TAB_META: Record<
   characters: { label: "Characters", Icon: Users },
   documents: { label: "Documents", Icon: BookOpen },
   assets: { label: "Assets", Icon: Images },
+  animatic: { label: "Animatic", Icon: Film },
   team: { label: "Team", Icon: Users },
 };
 
@@ -168,6 +173,7 @@ function ProductionShell({
   const docs = useProductionDocuments(production.slug);
   const episodes = useProductionEpisodes(production.slug);
   const characters = useProductionCharacters(production.slug);
+  const animatic = useProductionAnimatic(production.slug);
   const mainChannel = productionMainChannel(
     production,
     channelsQuery.data ?? [],
@@ -186,6 +192,7 @@ function ProductionShell({
     characters: characters.characters.length,
     documents: docs.documents.length,
     assets: null,
+    animatic: animatic.animatic?.cuts.length ?? null,
     team: production.agents.length,
   };
 
@@ -305,6 +312,14 @@ function ProductionShell({
               documents={docs.documents}
               entityId={entityId}
               isPending={docs.isPending}
+              onNavigate={onNavigate}
+              production={production}
+            />
+          ) : null}
+          {tab === "animatic" ? (
+            <ProductionAnimaticTab
+              animatic={animatic.animatic}
+              episodes={episodes.episodes}
               onNavigate={onNavigate}
               production={production}
             />

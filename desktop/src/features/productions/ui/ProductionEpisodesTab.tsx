@@ -4,7 +4,9 @@ import {
   ChevronRight,
   ArrowDown,
   ArrowUp,
+  ChevronDown as ChevronDownIcon,
   Film,
+  Search,
   LayoutGrid,
   Pencil,
   Plus,
@@ -34,7 +36,10 @@ import { toast as notify } from "sonner";
 import { usePublishEntityMutation } from "../entityHooks";
 import {
   type Episode,
+  episodeSeconds,
   episodeToContent,
+  formatTimecode,
+  sequenceTimeline,
   isValidEntityId,
   SHOT_STATES,
   type Shot,
@@ -189,6 +194,11 @@ export function ProductionEpisodesTab({
   onNavigate: ProductionNavigate;
 }) {
   const [view, setView] = React.useState<EpisodesView>("list");
+  const [query, setQuery] = React.useState("");
+  const [stateFilter, setStateFilter] = React.useState<
+    "all" | "pending" | "cartela" | "revisao" | "approved"
+  >("all");
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
   const publish = usePublishEntityMutation("ep", production.slug);
   const [creating, setCreating] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState("");
@@ -276,6 +286,7 @@ export function ProductionEpisodesTab({
         key={selected.eventId}
         onBack={() => onNavigate({ tab: "episodes" })}
         production={production}
+        sequence={sequenceTimeline(episodes).get(selected.id) ?? null}
       />
     );
   }
@@ -288,21 +299,84 @@ export function ProductionEpisodesTab({
       />
     );
   }
+  const timeline = sequenceTimeline(episodes);
+  const q = query.trim().toLowerCase();
+  const filtered = episodes.filter((ep) => {
+    if (stateFilter !== "all") {
+      const c = shotProgress(ep.shots);
+      const total = ep.shots.length;
+      if (stateFilter === "pending" && (total === 0 || c.aprovado === total))
+        return false;
+      if (stateFilter === "approved" && (total === 0 || c.aprovado !== total))
+        return false;
+      if (stateFilter === "cartela" && c.cartela === 0) return false;
+      if (stateFilter === "revisao" && c.revisao === 0) return false;
+    }
+    if (!q) return true;
+    const hay = [
+      ep.title,
+      ep.block,
+      ep.blockTitle,
+      ep.year,
+      `ep ${ep.number}`,
+      ...ep.shots.flatMap((sh) => [
+        sh.scene,
+        sh.framing,
+        sh.action,
+        sh.dialogue,
+        sh.cast,
+      ]),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
   const blocks = new Map<string, Episode[]>();
-  for (const ep of episodes) {
+  for (const ep of filtered) {
     const key = ep.block || "—";
     blocks.set(key, [...(blocks.get(key) ?? []), ep]);
   }
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          aria-label="Search episodes and shots"
+          className="h-8 w-64 pl-8"
+          data-testid="episodes-search"
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search title, scene, action, cast…"
+          value={query}
+        />
+      </div>
+      <select
+        aria-label="Filter by state"
+        className={`${SELECT_CLASS} h-8`}
+        data-testid="episodes-filter"
+        onChange={(e) => setStateFilter(e.target.value as typeof stateFilter)}
+        value={stateFilter}
+      >
+        <option value="all">All episodes</option>
+        <option value="pending">With pending shots</option>
+        <option value="cartela">With black cards</option>
+        <option value="revisao">In review</option>
+        <option value="approved">Fully approved</option>
+      </select>
+      {q || stateFilter !== "all" ? (
+        <span className="text-xs text-muted-foreground">
+          {filtered.length} of {episodes.length}
+        </span>
+      ) : null}
+    </div>
+  );
   if (view === "board") {
     return (
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <Kicker>
-            All shots ({episodes.reduce((n, e) => n + e.shots.length, 0)})
-          </Kicker>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {toolbar}
           <ViewToggle onChange={setView} value={view} />
         </div>
-        {episodes.map((ep) => (
+        {filtered.map((ep) => (
           <section className="space-y-3" key={ep.id}>
             <button
               className="flex items-baseline gap-2 text-left hover:underline"
@@ -333,62 +407,112 @@ export function ProductionEpisodesTab({
   }
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div className="flex items-center justify-between gap-3">
-        {creating ? createForm : newButton}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {creating ? createForm : newButton}
+          {toolbar}
+        </div>
         <ViewToggle onChange={setView} value={view} />
       </div>
+      {blocks.size === 0 ? (
+        <EmptyState
+          description="Try another search or filter."
+          title="No episodes match"
+        />
+      ) : null}
       {[...blocks.entries()].map(([block, eps]) => {
         const counts = shotProgress(eps.flatMap((e) => e.shots));
+        const isCollapsed = collapsed[block] ?? false;
+        const first = timeline.get(eps[0]?.id ?? "");
+        const blockSeconds = eps.reduce(
+          (n, e) => n + (episodeSeconds(e) ?? 0),
+          0,
+        );
         return (
-          <section key={block}>
-            <div className="mb-3 flex items-end justify-between gap-4">
-              <div>
+          <section
+            className="rounded-xl border border-border/60 bg-card/30"
+            data-testid={`episodes-block-${block}`}
+            key={block}
+          >
+            <button
+              aria-expanded={!isCollapsed}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left"
+              onClick={() =>
+                setCollapsed((c) => ({ ...c, [block]: !isCollapsed }))
+              }
+              type="button"
+            >
+              <ChevronDownIcon
+                className={cn(
+                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  isCollapsed && "-rotate-90",
+                )}
+              />
+              <div className="min-w-0 flex-1">
                 <Kicker>{block === "—" ? "Episodes" : block}</Kicker>
                 {eps[0]?.blockTitle ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="truncate text-sm text-muted-foreground">
                     {eps[0].blockTitle}
                     {eps[0].year ? ` · ${eps[0].year}` : ""}
                   </p>
                 ) : null}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {counts.aprovado}/{eps.reduce((n, e) => n + e.shots.length, 0)}{" "}
-                shots approved
-              </p>
-            </div>
-            <ul className="grid gap-2 md:grid-cols-2">
-              {eps.map((ep) => {
-                const c = shotProgress(ep.shots);
-                return (
-                  <li key={ep.id}>
-                    <button
-                      className="flex w-full flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-4 text-left transition-colors hover:border-border hover:bg-card/70"
-                      data-testid={`production-episode-${ep.id}`}
-                      onClick={() => onNavigate({ tab: "episodes", id: ep.id })}
-                      type="button"
-                    >
-                      <div className="flex items-baseline gap-3">
-                        <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-                          EP. {String(ep.number).padStart(2, "0")}
-                        </span>
-                        <span
-                          className="truncate font-semibold"
-                          style={DISPLAY_FONT}
-                        >
-                          {ep.title}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                        <span>{ep.shots.length} shots</span>
-                        {ep.duration ? <span>· {ep.duration}</span> : null}
-                        {ep.aspect ? <span>· {ep.aspect}</span> : null}
-                      </div>
-                      <ShotProgressBar counts={c} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+              <div className="shrink-0 text-right text-xs text-muted-foreground">
+                <p>
+                  {eps.length} ep · {first ? formatTimecode(first.start) : "—"}{" "}
+                  → {first ? formatTimecode(first.start + blockSeconds) : "—"}
+                </p>
+                <p>
+                  {counts.aprovado}/
+                  {eps.reduce((n, e) => n + e.shots.length, 0)} shots approved
+                </p>
+              </div>
+            </button>
+            {isCollapsed ? null : (
+              <ul className="grid gap-2 px-4 pb-4 md:grid-cols-2">
+                {eps.map((ep) => {
+                  const c = shotProgress(ep.shots);
+                  return (
+                    <li key={ep.id}>
+                      <button
+                        className="flex w-full flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-4 text-left transition-colors hover:border-border hover:bg-card/70"
+                        data-testid={`production-episode-${ep.id}`}
+                        onClick={() =>
+                          onNavigate({ tab: "episodes", id: ep.id })
+                        }
+                        type="button"
+                      >
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                            EP. {String(ep.number).padStart(2, "0")}
+                          </span>
+                          <span
+                            className="min-w-0 flex-1 truncate font-semibold"
+                            style={DISPLAY_FONT}
+                          >
+                            {ep.title}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                            {(() => {
+                              const t = timeline.get(ep.id);
+                              return t
+                                ? `${formatTimecode(t.start)}${t.end != null ? `–${formatTimecode(t.end)}` : ""}`
+                                : "";
+                            })()}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                          <span>{ep.shots.length} shots</span>
+                          {ep.duration ? <span>· {ep.duration}</span> : null}
+                          {ep.aspect ? <span>· {ep.aspect}</span> : null}
+                        </div>
+                        <ShotProgressBar counts={c} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         );
       })}
@@ -400,10 +524,12 @@ function EpisodeDetail({
   production,
   episode,
   onBack,
+  sequence,
 }: {
   production: Production;
   episode: Episode;
   onBack: () => void;
+  sequence: { start: number; end: number | null } | null;
 }) {
   const publish = usePublishEntityMutation("ep", production.slug);
   const [shots, setShots] = React.useState<Shot[]>(episode.shots);
@@ -510,6 +636,17 @@ function EpisodeDetail({
             {episode.title}
           </h2>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {sequence ? (
+              <Chip className="font-mono">
+                {formatTimecode(sequence.start)}
+                {sequence.end != null
+                  ? ` – ${formatTimecode(sequence.end)}`
+                  : ""}
+                <span className="ml-1 font-sans text-muted-foreground">
+                  in sequence
+                </span>
+              </Chip>
+            ) : null}
             {episode.block ? <Chip>{episode.block}</Chip> : null}
             {episode.duration ? <Chip>{episode.duration}</Chip> : null}
             {episode.aspect ? <Chip>{episode.aspect}</Chip> : null}

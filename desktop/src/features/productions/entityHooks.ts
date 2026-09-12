@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useIdentityQuery } from "@/shared/api/hooks";
 
 import {
+  type Animatic,
+  ANIMATIC_DOC_ID,
   type Character,
   type Episode,
   type EntityKind,
   fetchEntityEvents,
+  parseAnimatic,
   parseCharacter,
   parseDocument,
   parseEpisode,
@@ -33,8 +36,16 @@ export function useProductionDocuments(slug: string) {
   const q = useEntityEvents("doc");
   const documents: ProductionDocument[] = (q.data ?? [])
     .flatMap((e) => parseDocument(e, slug) ?? [])
+    .filter((d) => d.format !== "animatic" && d.id !== ANIMATIC_DOC_ID)
     .sort((a, b) => a.title.localeCompare(b.title));
   return { ...q, documents };
+}
+
+export function useProductionAnimatic(slug: string) {
+  const q = useEntityEvents("doc");
+  const animatic: Animatic | null =
+    (q.data ?? []).flatMap((e) => parseAnimatic(e, slug) ?? [])[0] ?? null;
+  return { ...q, animatic };
 }
 
 export function useProductionEpisodes(slug: string) {
