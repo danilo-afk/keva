@@ -116,6 +116,18 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  const goProduction = React.useCallback(
+    (productionId: string, behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/productions/$productionId",
+          params: { productionId },
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
   const goProjects = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -467,6 +479,7 @@ export function useAppNavigation() {
     goNewMessage,
     goNewWorkflow,
     goNewWorkflowForChannel,
+    goProduction,
     goProject,
     goProjects,
     goPulse,

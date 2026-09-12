@@ -1,6 +1,7 @@
 import { Activity, Bot, Folders, Inbox, Zap } from "lucide-react";
 
 import { TopbarSearch } from "@/features/search/ui/TopbarSearch";
+import { SidebarProductionsSection } from "@/features/sidebar/ui/SidebarProductionsSection";
 import { SidebarProjectsSection } from "@/features/sidebar/ui/SidebarProjectsSection";
 import { FeatureGate } from "@/shared/features";
 import type { Channel, SearchHit } from "@/shared/api/types";
@@ -186,6 +187,7 @@ export function AppSidebarPrimaryMenu({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarProjectsSection />
+      <SidebarProductionsSection />
     </>
   );
 }
