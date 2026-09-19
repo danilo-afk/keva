@@ -72,3 +72,8 @@ identity.key
 
 # Helm dependency tarballs — regenerable from Chart.lock via `helm dependency build`
 deploy/charts/*/charts/*.tgz
+
+# kiara-site (Next export)
+kiara-site/out/
+kiara-site/.next/
+kiara-site/next-env.d.ts
