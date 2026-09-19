@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as React from "react";
 
 import { useIdentityQuery } from "@/shared/api/hooks";
+
+import { useProductionsQuery } from "./hooks";
 
 import {
   type Animatic,
@@ -15,6 +18,7 @@ import {
   parseEpisode,
   type ProductionDocument,
   publishEntity,
+  type TeamBySlug,
 } from "./productionEntities";
 
 export const entityQueryKey = (kind: EntityKind) =>
@@ -23,10 +27,26 @@ export const entityQueryKey = (kind: EntityKind) =>
 function useEntityEvents(kind: EntityKind) {
   const identityQuery = useIdentityQuery();
   const owner = identityQuery.data?.pubkey;
+  const productionsQuery = useProductionsQuery();
+  // Agents write with their own keys; trust the ones each production lists.
+  const teams = React.useMemo<TeamBySlug>(
+    () =>
+      new Map(
+        (productionsQuery.data ?? []).map((p) => [
+          p.slug,
+          p.agents.map((a) => a.pubkey),
+        ]),
+      ),
+    [productionsQuery.data],
+  );
+  const teamKey = [...teams]
+    .map(([slug, agents]) => `${slug}:${[...agents].sort().join(",")}`)
+    .sort()
+    .join(";");
   return useQuery({
-    enabled: Boolean(owner),
-    queryKey: [...entityQueryKey(kind), owner ?? "none"],
-    queryFn: () => fetchEntityEvents(kind, owner ?? ""),
+    enabled: Boolean(owner) && productionsQuery.isSuccess,
+    queryKey: [...entityQueryKey(kind), owner ?? "none", teamKey],
+    queryFn: () => fetchEntityEvents(kind, owner ?? "", teams),
     staleTime: 15_000,
     retry: 2,
   });

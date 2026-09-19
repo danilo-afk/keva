@@ -1,7 +1,8 @@
 use super::{
     built_in_persona_records, ensure_persona_ids_are_active, ensure_persona_is_active,
     merge_personas, migrate_retired_personas, validate_persona_activation_change,
-    validate_persona_deletion, BUILT_IN_PERSONAS, RETIRED_PERSONAS,
+    validate_persona_deletion, BUILT_IN_PERSONAS, KIARA_PRODUCER_PROMPT_FULL, RETIRED_PERSONAS,
+    SUPERSEDED_PROMPTS,
 };
 use crate::managed_agents::discovery::{default_agent_command, effective_agent_command};
 use crate::managed_agents::AgentDefinition;
@@ -48,7 +49,18 @@ fn merge_personas_adds_missing_built_ins() {
         .iter()
         .map(|record| record.display_name.as_str())
         .collect();
-    assert_eq!(display_names, vec!["Fizz", "Honey", "Pollen"]);
+    assert_eq!(
+        display_names,
+        vec![
+            "Fizz",
+            "Honey",
+            "Pollen",
+            "Producer",
+            "Argumento",
+            "Bíblia",
+            "Episode Writer"
+        ]
+    );
     let active_ids: Vec<&str> = records
         .iter()
         .filter(|record| record.is_active)
@@ -56,7 +68,15 @@ fn merge_personas_adds_missing_built_ins() {
         .collect();
     assert_eq!(
         active_ids,
-        vec!["builtin:fizz", "builtin:honey", "builtin:bumble"]
+        vec![
+            "builtin:fizz",
+            "builtin:honey",
+            "builtin:bumble",
+            "builtin:kiara-producer",
+            "builtin:kiara-argumento",
+            "builtin:kiara-biblia",
+            "builtin:kiara-episodes"
+        ]
     );
 }
 
@@ -107,6 +127,61 @@ fn merge_personas_restores_builtin_marker_without_resetting_edits() {
         .expect("fizz built-in should exist");
     assert!(fizz.is_builtin);
     assert_eq!(fizz.display_name, "My Fizz");
+}
+
+#[test]
+fn merge_personas_refreshes_unmodified_superseded_prompts_only() {
+    let (stale_id, old_prompt) = SUPERSEDED_PROMPTS[0];
+    assert_eq!(stale_id, "builtin:kiara-producer");
+    assert_ne!(
+        old_prompt, KIARA_PRODUCER_PROMPT_FULL,
+        "fixture must be a superseded seed"
+    );
+    let mut stale = custom_persona(stale_id, "Producer");
+    stale.is_builtin = true;
+    stale.system_prompt = old_prompt.to_string();
+    let mut edited = custom_persona("builtin:kiara-biblia", "Bíblia");
+    edited.is_builtin = true;
+    edited.system_prompt = "User-edited instructions".to_string();
+
+    let (records, changed) = merge_personas(vec![stale, edited], "2026-09-19T00:00:00Z");
+
+    assert!(changed);
+    let producer = records
+        .iter()
+        .find(|record| record.id == stale_id)
+        .expect("producer built-in should exist");
+    assert_eq!(producer.system_prompt, KIARA_PRODUCER_PROMPT_FULL);
+    assert_eq!(producer.updated_at, "2026-09-19T00:00:00Z");
+    let biblia = records
+        .iter()
+        .find(|record| record.id == "builtin:kiara-biblia")
+        .expect("biblia built-in should exist");
+    assert_eq!(biblia.system_prompt, "User-edited instructions");
+}
+
+#[test]
+fn merge_personas_fills_blank_runtime_from_seed_but_keeps_a_chosen_one() {
+    let mut blank = custom_persona("builtin:kiara-episodes", "Episode Writer");
+    blank.is_builtin = true;
+    blank.runtime = None;
+    let mut chosen = custom_persona("builtin:kiara-producer", "Producer");
+    chosen.is_builtin = true;
+    chosen.runtime = Some("goose".to_string());
+
+    let (records, _) = merge_personas(vec![blank, chosen], "2026-09-19T00:00:00Z");
+
+    let writer = records
+        .iter()
+        .find(|record| record.id == "builtin:kiara-episodes")
+        .expect("episode writer built-in should exist");
+    assert_eq!(writer.runtime.as_deref(), Some("claude"));
+    assert_eq!(writer.updated_at, "2026-09-19T00:00:00Z");
+    let producer = records
+        .iter()
+        .find(|record| record.id == "builtin:kiara-producer")
+        .expect("producer built-in should exist");
+    assert_eq!(producer.runtime.as_deref(), Some("goose"));
 }
 
 #[test]

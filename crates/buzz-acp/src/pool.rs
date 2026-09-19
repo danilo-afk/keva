@@ -1484,21 +1484,21 @@ async fn create_session_and_apply_model(
     let is_goose = agent.agent_name == "goose";
     let combined_system_prompt = with_production(
         with_canvas(
-        with_huddle_instructions(
-            with_core(
-                with_team(
-                    framed_system_prompt(
-                        &ctx.cwd,
-                        ctx.base_prompt.as_deref(),
-                        ctx.system_prompt.as_deref(),
+            with_huddle_instructions(
+                with_core(
+                    with_team(
+                        framed_system_prompt(
+                            &ctx.cwd,
+                            ctx.base_prompt.as_deref(),
+                            ctx.system_prompt.as_deref(),
+                        ),
+                        ctx.team_instructions.as_deref(),
                     ),
-                    ctx.team_instructions.as_deref(),
+                    agent_core,
                 ),
-                agent_core,
+                channel.huddle_instructions,
             ),
-            channel.huddle_instructions,
-        ),
-        channel.canvas,
+            channel.canvas,
         ),
         channel.production,
     );
@@ -2511,14 +2511,19 @@ pub async fn run_prompt_task(
     // keva NIP-KP: the production this channel belongs to, fetched only when a
     // new session is about to be created (a production edit lands on the next
     // session, exactly like the core memory and the canvas).
-    let agent_production: Option<String> = match &source {
-        PromptSource::Channel(scope) if !agent.state.sessions.contains_key(scope) => {
+    // Owner-pinned: without a known owner there is no author to trust, so no
+    // production is injected.
+    let agent_production: Option<String> = match (&source, ctx.agent_owner_pubkey.as_ref()) {
+        (PromptSource::Channel(scope), Some(owner))
+            if !agent.state.sessions.contains_key(scope) =>
+        {
             const PRODUCTION_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
             let agent_pk = ctx.agent_keys.public_key();
             let fetch = crate::production_fetch::build_production_section(
                 &ctx.rest_client,
                 scope.channel_id(),
                 &agent_pk,
+                owner,
             );
             match tokio::time::timeout(PRODUCTION_FETCH_TIMEOUT, fetch).await {
                 Ok(section) => {
@@ -5301,7 +5306,10 @@ async fn publish_final_text_if_unpublished(
             return;
         }
     }
-    let root = target.root_id.clone().unwrap_or_else(|| target.trigger_id.clone());
+    let root = target
+        .root_id
+        .clone()
+        .unwrap_or_else(|| target.trigger_id.clone());
     let thread_tags = ThreadTags {
         root_event_id: Some(root),
         parent_event_id: Some(target.trigger_id.clone()),

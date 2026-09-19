@@ -26,10 +26,30 @@ fn parse_channel(spec: &str) -> Result<Uuid, CliError> {
         .map_err(|e| CliError::Usage(format!("--channel must be a channel UUID: {e}")))
 }
 
-async fn fetch(client: &BuzzClient, slug: Option<&str>) -> Result<Vec<serde_json::Value>, CliError> {
+fn self_hex(client: &BuzzClient) -> String {
+    client.keys().public_key().to_hex()
+}
+
+/// Productions are owner-authored: a human reads their own, an agent reads its
+/// owner's (NIP-OA auth tag). Without this an agent sees no production at all.
+fn production_owner_hex(client: &BuzzClient) -> String {
+    client
+        .auth_tag_owner_hex()
+        .map(|o| o.to_ascii_lowercase())
+        .unwrap_or_else(|| self_hex(client))
+}
+
+fn is_agent(client: &BuzzClient) -> bool {
+    production_owner_hex(client) != self_hex(client)
+}
+
+async fn fetch(
+    client: &BuzzClient,
+    slug: Option<&str>,
+) -> Result<Vec<serde_json::Value>, CliError> {
     let mut filter = serde_json::json!({
         "kinds": [KIND_PRODUCTION],
-        "authors": [client.keys().public_key().to_hex()],
+        "authors": [production_owner_hex(client)],
         "limit": 200,
     });
     if let Some(slug) = slug {
@@ -107,7 +127,10 @@ pub async fn dispatch(cmd: crate::ProductionsCmd, client: &BuzzClient) -> Result
                 .iter()
                 .max_by_key(|e| e["created_at"].as_i64().unwrap_or(0))
                 .ok_or_else(|| CliError::Other(format!("production {slug:?} not found")))?;
-            println!("{}", serde_json::to_string(&summarize(newest)).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string(&summarize(newest)).unwrap_or_default()
+            );
             Ok(())
         }
         crate::ProductionsCmd::Create {
@@ -122,6 +145,15 @@ pub async fn dispatch(cmd: crate::ProductionsCmd, client: &BuzzClient) -> Result
             agent,
             replace,
         } => {
+            // An agent-signed production would be invisible to the owner's app.
+            if is_agent(client) {
+                return Err(CliError::Usage(
+                    "productions are created by their owner in the app (Productions → New); \
+                     nothing was written. Once it exists, write its documents, episodes and \
+                     characters with `docs|episodes|characters set`."
+                        .into(),
+                ));
+            }
             let existing = fetch(client, Some(&slug)).await?;
             let existing = existing
                 .iter()
@@ -184,7 +216,10 @@ pub async fn dispatch(cmd: crate::ProductionsCmd, client: &BuzzClient) -> Result
                     })
                     .unwrap_or_default()
             } else {
-                channel.iter().map(|c| parse_channel(c)).collect::<Result<_, _>>()?
+                channel
+                    .iter()
+                    .map(|c| parse_channel(c))
+                    .collect::<Result<_, _>>()?
             };
             let agents: Vec<(String, Option<String>)> = if agent.is_empty() {
                 existing
@@ -202,7 +237,10 @@ pub async fn dispatch(cmd: crate::ProductionsCmd, client: &BuzzClient) -> Result
                     })
                     .unwrap_or_default()
             } else {
-                agent.iter().map(|a| parse_agent_spec(a)).collect::<Result<_, _>>()?
+                agent
+                    .iter()
+                    .map(|a| parse_agent_spec(a))
+                    .collect::<Result<_, _>>()?
             };
             let content = serde_json::to_string(&body).unwrap_or_default();
             let builder = buzz_sdk::build_production(&slug, &content, &channels, &agents)
@@ -223,8 +261,12 @@ pub async fn dispatch(cmd: crate::ProductionsCmd, client: &BuzzClient) -> Result
             );
             Ok(())
         }
-        crate::ProductionsCmd::Docs(sub) => entity_dispatch(KIND_PRODUCTION_DOCUMENT, "doc", sub, client).await,
-        crate::ProductionsCmd::Episodes(sub) => entity_dispatch(KIND_PRODUCTION_EPISODE, "ep", sub, client).await,
+        crate::ProductionsCmd::Docs(sub) => {
+            entity_dispatch(KIND_PRODUCTION_DOCUMENT, "doc", sub, client).await
+        }
+        crate::ProductionsCmd::Episodes(sub) => {
+            entity_dispatch(KIND_PRODUCTION_EPISODE, "ep", sub, client).await
+        }
         crate::ProductionsCmd::Characters(sub) => {
             entity_dispatch(KIND_PRODUCTION_CHARACTER, "char", sub, client).await
         }
@@ -258,16 +300,81 @@ fn entity_summary(ev: &serde_json::Value) -> serde_json::Value {
     })
 }
 
+/// Who may author a production's entities: its owner plus the agents the
+/// owner listed on it. Entities from anyone else are ignored on read, and a
+/// write from outside this set is refused because no reader would show it.
+async fn trusted_authors(client: &BuzzClient, slug: &str) -> Result<Vec<String>, CliError> {
+    let productions = fetch(client, Some(slug)).await?;
+    let Some(production) = productions
+        .iter()
+        .max_by_key(|e| e["created_at"].as_i64().unwrap_or(0))
+    else {
+        if is_agent(client) {
+            return Err(CliError::Other(format!(
+                "production {slug:?} not found for your owner; nothing was read or written"
+            )));
+        }
+        return Ok(vec![self_hex(client)]);
+    };
+    Ok(team_authors(production))
+}
+
+/// The production's author followed by its `agent` tags, lowercased, deduped.
+fn team_authors(production: &serde_json::Value) -> Vec<String> {
+    let mut authors = vec![production["pubkey"]
+        .as_str()
+        .unwrap_or("")
+        .to_ascii_lowercase()];
+    for t in tag_values(production, "agent") {
+        if let Some(pk) = t.get(1).and_then(|v| v.as_str()) {
+            let pk = pk.to_ascii_lowercase();
+            if !authors.contains(&pk) {
+                authors.push(pk);
+            }
+        }
+    }
+    authors
+}
+
+fn d_of(ev: &serde_json::Value) -> &str {
+    tag_values(ev, "d")
+        .first()
+        .and_then(|t| t.get(1))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+}
+
+/// Newest event per `d` across authors; ties go to the lowest id so every
+/// reader picks the same head.
+fn newest_by_d(events: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    let mut heads: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
+    for ev in events {
+        let key = d_of(&ev).to_string();
+        let newer = heads.get(&key).is_none_or(|cur| {
+            let (a, b) = (
+                ev["created_at"].as_i64().unwrap_or(0),
+                cur["created_at"].as_i64().unwrap_or(0),
+            );
+            a > b || (a == b && ev["id"].as_str() < cur["id"].as_str())
+        });
+        if newer {
+            heads.insert(key, ev);
+        }
+    }
+    heads.into_values().collect()
+}
+
 async fn entity_fetch(
     client: &BuzzClient,
     kind: u32,
     prefix: &str,
     slug: &str,
     id: Option<&str>,
+    authors: &[String],
 ) -> Result<Vec<serde_json::Value>, CliError> {
     let mut filter = serde_json::json!({
         "kinds": [kind],
-        "authors": [client.keys().public_key().to_hex()],
+        "authors": authors,
         "limit": 500,
     });
     if let Some(id) = id {
@@ -277,16 +384,12 @@ async fn entity_fetch(
     let events: Vec<serde_json::Value> = serde_json::from_str(&raw)
         .map_err(|e| CliError::Other(format!("relay returned non-JSON: {e}")))?;
     let wanted = format!("{slug}/{prefix}/");
-    Ok(events
-        .into_iter()
-        .filter(|ev| {
-            tag_values(ev, "d")
-                .first()
-                .and_then(|t| t.get(1))
-                .and_then(|v| v.as_str())
-                .is_some_and(|d| d.starts_with(&wanted))
-        })
-        .collect())
+    Ok(newest_by_d(
+        events
+            .into_iter()
+            .filter(|ev| d_of(ev).starts_with(&wanted))
+            .collect(),
+    ))
 }
 
 async fn entity_dispatch(
@@ -297,7 +400,8 @@ async fn entity_dispatch(
 ) -> Result<(), CliError> {
     match cmd {
         crate::ProductionEntityCmd::List { slug } => {
-            let events = entity_fetch(client, kind, prefix, &slug, None).await?;
+            let authors = trusted_authors(client, &slug).await?;
+            let events = entity_fetch(client, kind, prefix, &slug, None, &authors).await?;
             let mut list: Vec<serde_json::Value> = events
                 .iter()
                 .map(entity_summary)
@@ -308,17 +412,28 @@ async fn entity_dispatch(
             Ok(())
         }
         crate::ProductionEntityCmd::Get { slug, id } => {
-            let events = entity_fetch(client, kind, prefix, &slug, Some(&id)).await?;
+            let authors = trusted_authors(client, &slug).await?;
+            let events = entity_fetch(client, kind, prefix, &slug, Some(&id), &authors).await?;
             let newest = events
-                .iter()
-                .max_by_key(|e| e["created_at"].as_i64().unwrap_or(0))
+                .first()
+                .filter(|e| entity_summary(e)["content"]["deleted"].as_bool() != Some(true))
                 .ok_or_else(|| CliError::Other(format!("{prefix} {id:?} not found in {slug:?}")))?;
-            println!("{}", serde_json::to_string(&entity_summary(newest)).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string(&entity_summary(newest)).unwrap_or_default()
+            );
             Ok(())
         }
-        crate::ProductionEntityCmd::Set { slug, id, content, content_file } => {
+        crate::ProductionEntityCmd::Set {
+            slug,
+            id,
+            content,
+            content_file,
+        } => {
             if !entity_id_ok(&id) {
-                return Err(CliError::Usage("id must be 1-64 chars of [a-z0-9-_]".into()));
+                return Err(CliError::Usage(
+                    "id must be 1-64 chars of [a-z0-9-_]".into(),
+                ));
             }
             let raw = match (content, content_file) {
                 (Some(c), None) if c == "-" => {
@@ -334,13 +449,37 @@ async fn entity_dispatch(
             };
             let value: serde_json::Value = serde_json::from_str(&raw)
                 .map_err(|e| CliError::Usage(format!("content must be JSON: {e}")))?;
+            super::productions_validate::validate_entity(kind, &id, &value)
+                .map_err(CliError::Usage)?;
+            ensure_trusted_writer(client, &slug).await?;
             publish_entity(client, kind, prefix, &slug, &id, &value).await
         }
         crate::ProductionEntityCmd::Delete { slug, id } => {
-            publish_entity(client, kind, prefix, &slug, &id, &serde_json::json!({"deleted": true}))
-                .await
+            ensure_trusted_writer(client, &slug).await?;
+            publish_entity(
+                client,
+                kind,
+                prefix,
+                &slug,
+                &id,
+                &serde_json::json!({"deleted": true}),
+            )
+            .await
         }
     }
+}
+
+/// A write from outside the production's trusted set is accepted by the relay
+/// and shown by nobody; refuse it instead of reporting success.
+async fn ensure_trusted_writer(client: &BuzzClient, slug: &str) -> Result<(), CliError> {
+    let authors = trusted_authors(client, slug).await?;
+    if authors.contains(&self_hex(client)) {
+        return Ok(());
+    }
+    Err(CliError::Usage(format!(
+        "this agent is not on the team of production {slug:?}, so its writes would not be shown; \
+         nothing was written. Ask the owner to add it in the production's Team tab."
+    )))
 }
 
 async fn publish_entity(
@@ -355,13 +494,45 @@ async fn publish_entity(
     let content = serde_json::to_string(value).unwrap_or_default();
     let builder = buzz_sdk::build_production_entity(kind, &d_tag, &content)
         .map_err(|e| CliError::Usage(e.to_string()))?;
-    let event = builder
-        .sign_with_keys(client.keys())
-        .map_err(|e| CliError::Other(format!("sign failed: {e}")))?;
+    let event = client.sign_event(builder)?;
     let resp = client.submit_event(event.clone()).await?;
     println!(
         "{}",
         serde_json::json!({ "d": d_tag, "event_id": event.id.to_hex(), "relay": resp })
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn entity(id: &str, author: &str, d: &str, created_at: i64) -> serde_json::Value {
+        json!({"id": id, "pubkey": author, "created_at": created_at, "tags": [["d", d]], "content": "{}"})
+    }
+
+    #[test]
+    fn team_is_the_owner_plus_listed_agents() {
+        let production = json!({"pubkey": "AA", "tags": [["d", "jony"], ["agent", "BB", "write"], ["agent", "bb"], ["c", "x"]]});
+        assert_eq!(
+            team_authors(&production),
+            vec!["aa".to_string(), "bb".to_string()]
+        );
+    }
+
+    #[test]
+    fn newest_wins_across_authors_and_ties_break_on_lowest_id() {
+        let heads = newest_by_d(vec![
+            entity("09", "owner", "jony/ep/ep01", 10),
+            entity("07", "agent", "jony/ep/ep01", 20),
+            entity("05", "owner", "jony/ep/ep02", 30),
+            entity("03", "agent", "jony/ep/ep02", 30),
+        ]);
+        let picked: Vec<&str> = heads
+            .iter()
+            .map(|e| e["id"].as_str().unwrap_or(""))
+            .collect();
+        assert_eq!(picked, vec!["07", "03"]);
+    }
 }

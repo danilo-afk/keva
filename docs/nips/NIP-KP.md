@@ -60,16 +60,38 @@ When a harness creates a new session for a channel, it queries `kind:30180` with
 
 ## Non-Goals
 
-Episodes, scenes, shots and assets are not in this NIP. Per-production agent memory is reserved (the harness ignores unknown fields).
+Scenes and assets are not in this NIP (episodes, shots, documents and characters are the entities below). Per-production agent memory is reserved (the harness ignores unknown fields).
 
 
 ## Production entities (kinds 30181–30183)
 
 Long-form material does not live in the production event. It is split into
-addressable, owner-authored entities keyed by `d = <slug>/<prefix>/<id>`
-(`id` in `[a-z0-9-_]`, up to 64 chars). The relay keeps the newest event per
-`d`; `version` in the content is the human-visible counter. Publishing
-`{"deleted": true}` tombstones an entity.
+addressable entities keyed by `d = <slug>/<prefix>/<id>` (`id` in
+`[a-z0-9-_]`, up to 64 chars). `version` in the content is the human-visible
+counter. Publishing `{"deleted": true}` tombstones an entity.
+
+### Authorship and trust
+
+The production event (kind 30180) is **owner-authored**: the desktop lists
+only the owner's, an agent reads its owner's (owner pubkey from the NIP-OA
+auth tag), and the harness injects only a production signed by the agent's
+owner — any member can publish a 30180 tagging a channel, so recency never
+beats authorship.
+
+Entities (30181–30183) are authored by the **team**: the production's author
+plus every pubkey in its `agent` tags. Agents sign with their own keys, so
+readers (desktop, CLI, harness) query all team authors and take, per `d`, the
+event with the greatest `created_at`, ties broken by the lowest event `id` —
+the same rule everywhere so every reader shows the same head. Events from
+outside the team are ignored, and the CLI refuses a write from an identity
+that is not on the team rather than publishing something nobody will show.
+An agent listed on production A has no say on production B. Only the owner
+can create a production; the CLI refuses `productions create` for an agent.
+
+The CLI validates entity content before signing (episode/shot shape, `MM:SS`
+timecodes that chain without gaps, `state` enum, known fields only) and
+rejects the whole write with the list of problems; nothing partial is
+published.
 
 | kind  | prefix | content (JSON) |
 |-------|--------|----------------|

@@ -3,11 +3,11 @@
 mod acp;
 mod config;
 mod engram_fetch;
-mod production_fetch;
 mod filter;
 mod observer;
 mod pool;
 mod pool_lifecycle;
+mod production_fetch;
 mod prompt_framing;
 mod prompt_project;
 mod queue;

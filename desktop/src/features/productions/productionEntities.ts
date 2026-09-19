@@ -351,28 +351,56 @@ export function parseCharacter(
   };
 }
 
-/** Newest event per `d` wins. */
+/** Newest event per `d` wins; ties go to the lowest id so every reader
+ * (desktop, CLI, harness) picks the same head across authors. */
 export function newestByD(events: RelayEvent[]): RelayEvent[] {
   const byD = new Map<string, RelayEvent>();
   for (const event of events) {
     const d = event.tags.find((t) => t[0] === "d")?.[1];
     if (!d) continue;
     const current = byD.get(d);
-    if (!current || event.created_at > current.created_at) byD.set(d, event);
+    if (
+      !current ||
+      event.created_at > current.created_at ||
+      (event.created_at === current.created_at && event.id < current.id)
+    )
+      byD.set(d, event);
   }
   return [...byD.values()];
+}
+
+/** Agent pubkeys per production slug: who may write its entities besides the owner. */
+export type TeamBySlug = ReadonlyMap<string, readonly string[]>;
+
+/** Keep the owner's events and, per production, its listed agents'. An agent
+ * on production A cannot write production B. */
+export function trustedEntityEvents(
+  events: RelayEvent[],
+  ownerPubkey: string,
+  teams: TeamBySlug,
+): RelayEvent[] {
+  return newestByD(
+    events.filter((event) => {
+      if (event.pubkey === ownerPubkey) return true;
+      const slug = event.tags.find((t) => t[0] === "d")?.[1]?.split("/")[0];
+      return Boolean(slug && teams.get(slug)?.includes(event.pubkey));
+    }),
+  );
 }
 
 export async function fetchEntityEvents(
   kind: EntityKind,
   ownerPubkey: string,
+  teams: TeamBySlug,
 ): Promise<RelayEvent[]> {
+  const authors = new Set([ownerPubkey]);
+  for (const agents of teams.values()) for (const pk of agents) authors.add(pk);
   const events = await relayClient.fetchEvents({
     kinds: [ENTITY_KINDS[kind]],
-    authors: [ownerPubkey],
+    authors: [...authors],
     limit: 500,
   });
-  return newestByD(events);
+  return trustedEntityEvents(events, ownerPubkey, teams);
 }
 
 export async function publishEntity(

@@ -39,14 +39,20 @@ const BUILT_IN_TEAMS: &[BuiltInTeam] = &[
         persona_ids: &["builtin:fizz", "builtin:honey", "builtin:bumble"],
     },
     // keva: the pre-production crew. Apply it to a production and every
-    // channel gets a producer, a treatment writer and a bible keeper.
+    // channel gets a producer, a treatment writer, a bible keeper and a
+    // episode writer.
     BuiltInTeam {
         id: "builtin-team:kiara-studio",
         name: "Kiara Studio",
         description: Some(
-            "Producer, Argumento writer and Bíblia keeper: create the production, interview for character sheets, judge images and keep the story consistent.",
+            "Producer, Argumento writer, Bíblia keeper and Episode Writer: set up the production, interview for character sheets, judge images, keep the story consistent and write each episode's shot list.",
         ),
-        persona_ids: &["builtin:kiara-producer", "builtin:kiara-argumento", "builtin:kiara-biblia"],
+        persona_ids: &[
+            "builtin:kiara-producer",
+            "builtin:kiara-argumento",
+            "builtin:kiara-biblia",
+            "builtin:kiara-episodes",
+        ],
     },
 ];
 

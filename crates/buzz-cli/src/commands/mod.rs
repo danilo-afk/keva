@@ -1,6 +1,5 @@
 pub mod agents;
 pub mod channel_templates;
-pub mod productions;
 pub mod channels;
 pub mod dms;
 pub mod emoji;
@@ -14,6 +13,8 @@ pub mod notes;
 pub mod pack;
 pub mod patches;
 pub mod pr;
+pub mod productions;
+pub mod productions_validate;
 pub mod project_channel;
 pub mod projects;
 pub mod reactions;

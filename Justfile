@@ -623,6 +623,14 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
         done
     fi
     cargo build -p buzz-acp -p buzz-agent -p buzz-backend-kubernetes -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr -p buzz-relay
+    # Tauri copies desktop/src-tauri/binaries/* next to the dev app binary, and
+    # that directory (plus ~/.local/bin/buzz-dev) is what managed agents get on
+    # PATH. Leaving the 0-byte stubs there hands agents a CLI that cannot run.
+    TARGET=$(rustc -vV | sed -n 's|host: ||p')
+    for bin in buzz-acp buzz-agent buzz-backend-kubernetes buzz-dev-mcp git-credential-nostr buzz; do
+        cp "target/debug/${bin}" "desktop/src-tauri/binaries/${bin}-${TARGET}"
+        chmod +x "desktop/src-tauri/binaries/${bin}-${TARGET}"
+    done
     # Docker Desktop's forwarded MinIO port can stall under the deployment
     # probe's 32 concurrent writers. Keep the gate enabled in local dev, using
     # the bounded profile already used by the relay test launcher.

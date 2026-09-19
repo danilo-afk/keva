@@ -336,9 +336,26 @@ fn welcome_team_is_seeded_and_idempotent() {
     let (records, changed) = merge_teams(Vec::new(), "2026-07-01T00:00:00Z");
 
     assert!(changed);
-    assert_eq!(records.len(), 1);
-    let welcome = &records[0];
-    assert_eq!(welcome.id, "builtin-team:welcome");
+    // Welcome plus the keva Kiara Studio crew.
+    assert_eq!(records.len(), 2);
+    let welcome = records
+        .iter()
+        .find(|t| t.id == "builtin-team:welcome")
+        .expect("welcome team should be seeded");
+    let kiara = records
+        .iter()
+        .find(|t| t.id == "builtin-team:kiara-studio")
+        .expect("kiara studio team should be seeded");
+    assert_eq!(
+        kiara.persona_ids,
+        vec![
+            "builtin:kiara-producer".to_string(),
+            "builtin:kiara-argumento".to_string(),
+            "builtin:kiara-biblia".to_string(),
+            "builtin:kiara-episodes".to_string(),
+        ]
+    );
+    assert!(kiara.is_builtin);
     assert_eq!(welcome.name, "Welcome Team");
     assert_eq!(
         welcome.description.as_deref(),
@@ -403,8 +420,9 @@ fn load_teams_readonly_absent_file_performs_no_write() {
     let records = load_teams_readonly(&path).unwrap();
 
     // Returns the merged built-in list without persisting it.
-    assert_eq!(records.len(), 1);
-    assert_eq!(records[0].id, "builtin-team:welcome");
+    assert_eq!(records.len(), 2);
+    assert!(records.iter().any(|t| t.id == "builtin-team:welcome"));
+    assert!(records.iter().any(|t| t.id == "builtin-team:kiara-studio"));
 
     // The file must still NOT exist — no write-on-load side effect.
     assert!(
