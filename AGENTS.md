@@ -85,6 +85,8 @@ crates/
 
 desktop/              # Tauri 2 + React 19 desktop app
 web/                  # Browser web client (repo browser, served by the relay)
+admin-web/            # Relay admin web (NIP-98 auth, Operator/Moderator roles)
+kiara-site/           # Public landing for ai-kiara.com — Next.js static export, no Buzz branding
 mobile/               # Flutter mobile app
 migrations/           # SQL migrations (auto-applied on relay startup)
 scripts/              # Dev tooling
